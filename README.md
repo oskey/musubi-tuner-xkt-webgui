@@ -50,6 +50,51 @@
 
 3. **安装并启动** - 按方式一的步骤2-3执行
 
+## ⚠️ 重要提示
+
+### 📋 训练TOML参数示例
+
+以下是一个标准的训练配置文件示例，适用于WAN2.2 T2V训练：
+
+```toml
+# Lovemf dataset configuration for T2V training
+# 正确的TOML格式配置文件（适配musubi-tuner wan_train_network.py）
+
+[general]
+# 原有基础参数（保留并优化）
+resolution = [512, 512]          # 图片分辨率，512x512适合Wan2.2 T2V，无需修改
+caption_extension = ".txt"       # 若用单独txt文件存提示词则保留，若提示词写在TOML里可删（你的场景保留）
+batch_size = 2                   # 优化：4090 24G VRAM可将批大小从1提至2，提升训练效率（1也能跑，2更快）
+enable_bucket = true             # 启用桶排序（自动分组同分辨率图片，避免频繁缩放，保留）
+bucket_no_upscale = false        # 不放大低于resolution的图片（避免模糊，保留）
+
+# 数据增强通过命令行参数控制，不在配置文件中设置
+
+[[datasets]]
+num_repeats = 2   # 提高重复次数，少量数据也能收敛
+image_directory = "./ai_data/datasets/a_huangxu"  # 图片存放路径（正确，保留）
+cache_directory = "./ai_data/a_huangxu_cache"            # 缓存路径（脚本会缓存预处理后的图片，加速后续训练，保留）
+# 调试模式通过命令行参数控制
+```
+
+### 🚀 使用方法
+
+1. **配置训练集** - 正确设置训练集路径和缓存目录，在WebUI中加载TOML配置文件
+2. **设置模型** - 进入WebUI界面，配置相关模型文件路径
+3. **验证缓存** - 分两次点击缓存按钮，检查是否成功生成缓存文件
+4. **开始训练** - 确认所有配置无误后，点击开始训练按钮
+
+### 🔥 特别注意
+
+**配置文件同步机制**：
+- 加载配置和保存配置时，系统会对TOML文件进行读取和写入操作
+- 训练命令会直接加载TOML配置文件中的参数
+- **重要**：修改以下关键参数后，必须先保存配置再开始训练：
+  - `batch_size` (训练批次大小)
+  - `num_repeats` (数据重复次数)
+  - `resolution` (图片分辨率)
+- 未保存的参数修改不会生效，可能导致训练结果不符合预期
+
 ## 🌐 访问地址
 
 - **WAN22 WebUI**: http://localhost:7860
