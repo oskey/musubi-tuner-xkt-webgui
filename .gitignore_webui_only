@@ -19,6 +19,7 @@
 !wan22_webui.py
 !README.md
 !readme.md
+!accelerate_config.yaml
 
 # 确保.git目录不被忽略
 !.git/
