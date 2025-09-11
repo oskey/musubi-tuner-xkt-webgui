@@ -1,8 +1,12 @@
 # Musubi-Tuner WebUI
 
+![训练状态保存与恢复](images/load_states.png)
+
 🎯 **专业级AI视频/图像生成模型训练平台**
 
 基于 [kohya-ss/musubi-tuner](https://github.com/kohya-ss/musubi-tuner) 的现代化Web界面扩展项目，为WAN2.2视频生成和Qwen-Image图像生成模型提供直观易用的LoRA训练解决方案。
+
+💾 **智能训练状态管理**：支持训练进度自动保存与断点续训功能，让您可以随时中断训练并从指定检查点恢复，确保长时间训练任务的稳定性和连续性。
 
 **🌟 让AI模型训练变得简单高效**
 - 零基础用户也能轻松上手的智能参数推荐系统
