@@ -211,7 +211,6 @@ A: 只需要上述表格中列出的核心文件即可。
 
 ## 📖 详细文档
 
-- [完整使用说明](README_WEBUI.md)
 - [WAN22 WebUI说明](wan22_webui.md)
 - [Qwen WebUI说明](qwen_webui.md)
 - [文件清单](WEBUI_FILES.md)
