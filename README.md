@@ -250,7 +250,6 @@ A: 只需要上述表格中列出的核心文件即可。
 
 - [WAN22 WebUI说明](wan22_webui.md)
 - [Qwen WebUI说明](qwen_webui.md)
-- [文件清单](WEBUI_FILES.md)
 
 ## 🤝 贡献
 
