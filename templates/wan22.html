@@ -1,0 +1,3472 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wan2.2 LoRA 训练界面</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e1e1e 0%, #2d2d2d 100%);
+            color: #e0e0e0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+        
+        .header h1 {
+            color: #61dafb;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        
+        .header p {
+            color: #a0a0a0;
+            font-size: 1.1em;
+        }
+        
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .panel {
+            background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+            border: 1px solid #4a5568;
+        }
+        
+        .panel h2 {
+            color: #61dafb;
+            margin-bottom: 20px;
+            font-size: 1.4em;
+            border-bottom: 2px solid #61dafb;
+            padding-bottom: 8px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #e0e0e0;
+            font-weight: 500;
+            cursor: help;
+        }
+        
+        .form-group input[type="text"],
+        .form-group input[type="number"],
+        .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #4a5568;
+            border-radius: 8px;
+            background: #1a202c;
+            color: #e0e0e0;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        
+        .form-group input[type="text"]:focus,
+        .form-group input[type="number"]:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #61dafb;
+            box-shadow: 0 0 0 3px rgba(97, 218, 251, 0.1);
+        }
+        
+        .form-group input[type="checkbox"] {
+            margin-right: 8px;
+            transform: scale(1.2);
+        }
+        
+        /* 视频训练选项样式 */
+        .video-training-section {
+            background: linear-gradient(135deg, #2a4365 0%, #3182ce 100%);
+            border: 2px solid #4299e1;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .video-training-section::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #4299e1, #63b3ed, #90cdf4);
+            animation: shimmer 2s infinite;
+        }
+        
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+        
+        .video-training-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 15px;
+            cursor: pointer;
+            padding: 10px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+        
+        .video-training-checkbox:hover {
+            background: rgba(66, 153, 225, 0.1);
+        }
+        
+        .video-training-checkbox input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            margin: 0;
+            cursor: pointer;
+            accent-color: #4299e1;
+        }
+        
+        .video-training-checkbox label {
+            font-size: 16px;
+            font-weight: 600;
+            color: #e2e8f0;
+            cursor: pointer;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .video-training-checkbox label::before {
+            content: '🎬';
+            font-size: 18px;
+        }
+        
+        .video-duration-settings {
+            background: rgba(26, 32, 44, 0.6);
+            border: 1px solid #4a5568;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 10px;
+            display: none;
+            transition: all 0.3s ease;
+        }
+        
+        .video-duration-settings.show {
+            display: block;
+            animation: slideDown 0.3s ease;
+        }
+        
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .video-duration-input {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .video-duration-input input {
+            width: 80px;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .video-duration-input span {
+            color: #a0aec0;
+            font-size: 14px;
+        }
+        
+        .form-group small {
+            color: #a0a0a0;
+            font-size: 12px;
+            margin-top: 5px;
+            display: block;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #61dafb 0%, #21b4d3 100%);
+            color: #1a202c;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(97, 218, 251, 0.3);
+        }
+        
+        .btn:disabled {
+            background: #4a5568;
+            color: #a0a0a0;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #e53e3e 0%, #c53030 100%);
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            box-shadow: 0 4px 15px rgba(229, 62, 62, 0.3);
+        }
+        
+        .log-container {
+            background: #1a202c;
+            border: 2px solid #4a5568;
+            border-radius: 8px;
+            height: 300px;
+            overflow-y: auto;
+            padding: 15px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+        
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 2px 0;
+        }
+        
+        .log-info { color: #61dafb; }
+        .log-warning { color: #fbd38d; }
+        .log-error { color: #fc8181; }
+        .log-success { color: #68d391; }
+        
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-ready { background-color: #68d391; }
+        .status-running { background-color: #61dafb; }
+        .status-error { background-color: #fc8181; }
+        
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #4a5568;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 15px 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #61dafb 0%, #21b4d3 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        .config-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        
+        .collapsible-section {
+            margin-top: 20px;
+        }
+        
+        .collapsible-header {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
+            border: none;
+            border-radius: 8px;
+            color: #61dafb;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin: 15px 0;
+        }
+        
+        .collapsible-content {
+            display: none;
+            padding: 10px;
+            border: 1px solid #4a5568;
+            border-radius: 8px;
+            margin-top: 10px;
+        }
+        
+        .task-type-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .task-type-btn {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #4a5568;
+            border-radius: 8px;
+            background: #2d3748;
+            color: #e0e0e0;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        
+        .task-type-btn.active {
+            border-color: #61dafb;
+            background: rgba(97, 218, 251, 0.1);
+            color: #61dafb;
+        }
+        
+        .input-with-button {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .input-with-button input {
+            flex: 1;
+        }
+        
+        .input-with-button button {
+            flex-shrink: 0;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        @media (max-width: 768px) {
+            .config-layout {
+                grid-template-columns: 1fr;
+            }
+            
+            .container {
+                padding: 10px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎬 Wan2.2 LoRA 训练界面</h1>
+            <p>文生视频 & 图生视频 LoRA 训练工具</p>
+        </div>
+        
+        <div class="main-content">
+            <!-- 日志面板 -->
+            <div class="panel">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h2 style="margin: 0;">📋 训练日志</h2>
+                    <div style="display: flex; gap: 10px;">
+                        <button onclick="clearLogs()" class="btn" style="padding: 5px 10px; font-size: 12px; background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);">🗑️ 清理日志</button>
+                        <button onclick="scrollToBottom()" class="btn" style="padding: 5px 10px; font-size: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">滚动到底部</button>
+                    </div>
+                </div>
+                <div class="log-container" id="log-output">
+                    <div class="log-entry log-info">
+                        <span style="color: #888;">[系统]</span> Wan2.2 训练界面已就绪
+                    </div>
+                </div>
+                
+                <!-- 状态和操作按钮 -->
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 15px;">
+                    <div style="display: flex; align-items: center;">
+                        <div class="status-indicator status-ready" id="status-indicator"></div>
+                        <span id="status-text" style="color: #d4d4d4; font-size: 14px;">就绪</span>
+                    </div>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill"></div>
+                </div>
+                <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px;">
+                    <button onclick="startTensorBoard()" class="btn" id="tensorboard-btn">📊 启动 TensorBoard</button>
+                    <button onclick="startCacheVAE()" class="btn" id="cache-vae-btn">🔄 预缓存 VAE Latents</button>
+                    <button onclick="startCacheTextEncoder()" class="btn" id="cache-te-btn">📝 预缓存文本编码器输出</button>
+                    <button onclick="startTraining()" class="btn" id="train-btn">🎯 开始训练</button>
+                    <button onclick="stopTraining()" class="btn btn-danger" id="stop-btn" disabled>⏹️ 停止训练</button>
+                    <button onclick="convertLora()" class="btn" id="convert-lora-btn" style="background-color: #28a745; color: white;">🔄 转换 LoRA</button>
+                </div>
+            </div>
+            
+            <!-- 任务类型选择 -->
+            <div class="panel">
+                <h2>🎯 训练任务类型</h2>
+                <div class="task-type-selector">
+                    <div class="task-type-btn active" id="t2v-btn" onclick="selectTaskType('t2v')">
+                        <div style="font-size: 24px; margin-bottom: 8px;">📝➡️🎬</div>
+                        <div><strong>文生视频 (T2V)</strong></div>
+                        <div style="font-size: 12px; color: #a0a0a0; margin-top: 4px;">从文本描述生成视频</div>
+                    </div>
+                    <div class="task-type-btn" id="i2v-btn" onclick="selectTaskType('i2v')">
+                        <div style="font-size: 24px; margin-bottom: 8px;">🖼️➡️🎬</div>
+                        <div><strong>图生视频 (I2V)</strong></div>
+                        <div style="font-size: 12px; color: #a0a0a0; margin-top: 4px;">从图片生成视频</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 虚拟环境配置 -->
+            <div class="panel" style="margin-bottom: 20px;">
+                <h2>🐍 运行环境</h2>
+                <div class="form-group">
+                    <label title="启用虚拟环境可以确保训练过程使用指定的Python环境，避免依赖冲突。">启用虚拟环境</label>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <input type="checkbox" id="enable_venv" checked title="启用虚拟环境可以确保训练过程使用指定的Python环境，避免依赖冲突。">
+                        <span style="color: #666; font-size: 14px;">使用虚拟环境执行训练命令</span>
+                    </div>
+                </div>
+                
+                <div class="form-group" id="venv_path_group">
+                    <label title="虚拟环境的Python可执行文件路径。通常位于虚拟环境的Scripts目录下。">虚拟环境Python路径</label>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="text" id="venv_python_path" title="虚拟环境的Python可执行文件路径。通常位于虚拟环境的Scripts目录下。" style="flex: 1;">
+                        <button type="button" onclick="selectFolder('venv_python_path')" class="btn" style="padding: 8px 12px; font-size: 12px;">📁 选择</button>
+                    </div>
+                    <small style="color: #666; display: block; margin-top: 5px;">💡 虚拟环境的Scripts目录路径</small>
+                </div>
+            </div>
+            
+            <!-- 配置布局 -->
+            <div class="config-layout">
+                <!-- 左侧：基础配置 -->
+                <div class="panel">
+                    <h2>📁 基础配置</h2>
+                    <div class="form-group">
+                        <label title="TOML格式的数据集配置文件，定义了训练数据的路径、标签和预处理参数。">数据集配置文件 (dataset_config)</label>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <input type="text" id="dataset_config" title="TOML格式的数据集配置文件，定义了训练数据的路径、标签和预处理参数。" style="flex: 1;">
+                            <button type="button" onclick="selectFileWithDialog('dataset_config')" class="btn" style="padding: 8px 12px; font-size: 12px;">📁 选择</button>
+                        </div>
+                        <small style="color: #666; display: block; margin-top: 5px;">💡 包含训练数据路径和标签的TOML配置文件</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label title="Wan2.2 DiT模型路径。这是训练的基础模型。">DiT模型路径 (dit)</label>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <input type="text" id="dit" title="Wan2.2 DiT模型路径。这是训练的基础模型。" style="flex: 1;">
+                            <button type="button" onclick="selectFileWithDialog('dit')" class="btn" style="padding: 8px 12px; font-size: 12px;">📁 选择</button>
+                        </div>
+                        <small style="color: #666; display: block; margin-top: 5px;">💡 Wan2.2的DiT扩散变换器模型</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label title="T5文本编码器模型路径。用于将文本提示编码为向量表示。">T5文本编码器路径 (t5)</label>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <input type="text" id="t5" title="T5文本编码器模型路径。用于将文本提示编码为向量表示。" style="flex: 1;">
+                            <button type="button" onclick="selectFileWithDialog('t5')" class="btn" style="padding: 8px 12px; font-size: 12px;">📁 选择</button>
+                        </div>
+                        <small style="color: #666; display: block; margin-top: 5px;">💡 T5文本编码器，Wan2.2无需CLIP</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label title="变分自编码器(VAE)模型路径。VAE负责在像素空间和潜在空间之间进行转换。">VAE模型路径 (vae)</label>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <input type="text" id="vae" title="变分自编码器(VAE)模型路径。VAE负责在像素空间和潜在空间之间进行转换。" style="flex: 1;">
+                            <button type="button" onclick="selectFileWithDialog('vae')" class="btn" style="padding: 8px 12px; font-size: 12px;">📁 选择</button>
+                        </div>
+                        <small style="color: #666; display: block; margin-top: 5px;">💡 负责视频的编码和解码处理</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label title="输出目录路径。训练完成的LoRA模型将保存到此目录。">输出目录 (output_dir)</label>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <input type="text" id="output_dir" title="输出目录路径。训练完成的LoRA模型将保存到此目录。" style="flex: 1;">
+                            <button type="button" onclick="selectFolder('output_dir')" class="btn" style="padding: 8px 12px; font-size: 12px;">📁 选择</button>
+                        </div>
+                        <small style="color: #666; display: block; margin-top: 5px;">💡 训练完成的模型文件保存位置</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label title="输出模型名称。训练完成后保存的LoRA模型文件名前缀。">输出模型名称 (output_name)</label>
+                        <input type="text" id="output_name" title="输出模型名称。训练完成后保存的LoRA模型文件名前缀。" style="width: 100%;">
+                        <small style="color: #666; display: block; margin-top: 5px;">💡 保存的LoRA模型文件名前缀</small>
+                    </div>
+                    
+                    <!-- LoRA转换设置分组 -->
+                    <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #ddd;">
+                        <h3 style="margin-bottom: 15px; color: #333;">🔄 LoRA转换设置</h3>
+                        
+                        <div class="form-group">
+                            <label title="待转换的LoRA文件完整路径。选择需要转换为ComfyUI格式的LoRA文件。">待转换LoRA文件地址</label>
+                            <div style="display: flex; gap: 10px; align-items: center;">
+                                <input type="text" id="convert_input_file" title="待转换的LoRA文件完整路径。选择需要转换为ComfyUI格式的LoRA文件。" style="flex: 1;">
+                                <button type="button" onclick="selectFileWithDialog('convert_input_file')" class="btn" style="padding: 8px 12px; font-size: 12px;">📁 选择</button>
+                            </div>
+                            <small style="color: #666; display: block; margin-top: 5px;">💡 选择要转换的LoRA文件（.safetensors格式）</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label title="转换后LoRA文件保存的目录路径。转换后的文件将保存到此目录。">转换后LoRA文件地址</label>
+                            <div style="display: flex; gap: 10px; align-items: center;">
+                                <input type="text" id="convert_output_dir" title="转换后LoRA文件保存的目录路径。转换后的文件将保存到此目录。" style="flex: 1;">
+                                <button type="button" onclick="selectFolder('convert_output_dir')" class="btn" style="padding: 8px 12px; font-size: 12px;">📁 选择</button>
+                            </div>
+                            <small style="color: #666; display: block; margin-top: 5px;">💡 转换后的ComfyUI格式文件保存目录</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 右侧训练参数面板 -->
+                <div class="panel">
+                    <h2>🎓 核心训练参数</h2>
+                    
+                    <!-- 训练类型选择 -->
+                    <div class="form-group">
+                        <div class="video-training-section">
+                            <div class="video-training-checkbox">
+                                <input type="checkbox" id="video_training_checkbox" onchange="toggleVideoSettings()">
+                                <label for="video_training_checkbox">训练类型 → 视频</label>
+                            </div>
+                            
+                            <div id="video_duration_settings" class="video-duration-settings">
+                                <label for="video_duration">视频总时长设置:</label>
+                                <div class="video-duration-input">
+                                    <input type="number" id="video_duration" value="300" min="1" max="3600" step="1">
+                                    <span>秒</span>
+                                </div>
+                                <small>所有视频文件的总时长（秒），会影响GPT推荐的参数计算，系统将根据总时长自动调节训练参数</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label title="训练批次大小。影响显存使用和训练速度。">训练批次大小 (train_batch_size)</label>
+                        <input type="number" id="train_batch_size" min="1" max="32" title="训练批次大小。影响显存使用和训练速度。">
+                        <small style="color: #666; display: block; margin-top: 5px;">💡 推荐值：1-4，根据显存大小调整</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label title="数据重复次数 - 从TOML配置文件读取。推荐值20~30（图片较少时），模型能更容易记住特征。">数据重复次数 (num_repeats)</label>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <input type="number" id="num_repeats" min="1" max="100" title="数据重复次数 - 从TOML配置文件读取。推荐值20~30（图片较少时），模型能更容易记住特征。" style="flex: 1;">
+                            <button onclick="setRecommendedNumRepeats()" class="btn" style="background: linear-gradient(45deg, #3498db, #2980b9); color: white; padding: 8px 12px; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 3px 6px rgba(0,0,0,0.3)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.2)'">🔧 软件推荐值</button>
+                            <button onclick="setChatGPTRecommendedNumRepeats()" class="btn" style="background: linear-gradient(45deg, #4ECDC4, #44A08D); color: white; padding: 8px 12px; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 3px 6px rgba(0,0,0,0.3)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.2)'">🤖 ChatGPT推荐值</button>
+                        </div>
+                        <div style="margin-top: 5px;">
+                            <span style="color: #666; cursor: pointer; user-select: none; display: inline-flex; align-items: center; gap: 5px;" 
+                                  onclick="toggleRecommendationTip()" 
+                                  onmouseover="this.style.color='#3498db'" 
+                                  onmouseout="this.style.color='#666'" 
+                                  title="点击查看详细推荐逻辑">
+                                <span id="tip-icon">💡</span> <strong>软件推荐提示</strong>
+                            </span>
+                            <span style="color: #666; cursor: pointer; user-select: none; display: inline-flex; align-items: center; gap: 5px; margin-left: 20px;" 
+                                  onclick="toggleChatGPTRecommendationTip()" 
+                                  onmouseover="this.style.color='#4ECDC4'" 
+                                  onmouseout="this.style.color='#666'" 
+                                  title="点击查看ChatGPT推荐逻辑">
+                                <span id="chatgpt-tip-icon">🤖</span> <strong>ChatGPT推荐提示</strong>
+                            </span>
+                            <div id="recommendation-tip" style="display: none; color: #666; margin-top: 8px; line-height: 1.4; padding: 10px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #3498db;">
+                                <strong>⚙️ 实现的功能逻辑</strong><br><br>
+                                <strong>非视频训练模式</strong>（未勾选视频训练）：<br>
+                                • 小数据集(≤50个文件)：推荐10次重复<br>
+                                • 中等数据集(51-200个文件)：推荐5次重复<br>
+                                • 较大数据集(201-500个文件)：推荐3次重复<br>
+                                • 大数据集(>500个文件)：推荐1次重复<br><br>
+                                <strong>视频训练模式</strong>（勾选视频训练）：<br>
+                                • 短视频(≤5秒)：推荐20次重复<br>
+                                • 中短视频(6-10秒)：推荐15次重复<br>
+                                • 中等视频(11-20秒)：推荐10次重复<br>
+                                • 较长视频(21-30秒)：推荐8次重复<br>
+                                • 长视频(>30秒)：推荐5次重复<br>
+                                • 同时考虑数据集大小进行微调
+                            </div>
+                            <div id="chatgpt-recommendation-tip" style="display: none; color: #666; margin-top: 8px; line-height: 1.4; padding: 10px; background: #f0fffe; border-radius: 6px; border-left: 3px solid #4ECDC4;">
+                                <strong>🤖 ChatGPT推荐算法</strong><br><br>
+                                <strong>📊 核心计算公式：</strong><br>
+                                • total_steps = ceil((N_images × repeats) / batch_size) × epochs<br>
+                                • steps_per_epoch = ceil((N_images × repeats) / batch_size)<br><br>
+                                <strong>🎯 目标总步数范围：</strong><br>
+                                • 快速试验：2k-5k steps<br>
+                                • 中等质量：5k-20k steps<br>
+                                • 高精度训练：20k-50k+ steps<br><br>
+                                <strong>📈 数据集大小推荐：</strong><br>
+                                • 小数据集(≤50文件)：repeats 50-200，配合低学习率<br>
+                                • 中等数据集(51-200)：repeats 10-50<br>
+                                • 大数据集(>500)：repeats 1-5<br><br>
+                                <strong>🎬 I2V vs T2V差异：</strong><br>
+                                • I2V：单样本包含多帧，需要较少repeats(1-20)<br>
+                                • T2V：文本条件多样，可用中等repeats(10-50)<br><br>
+                                <strong>⚠️ 重要提醒：</strong><br>
+                                • 增加repeats时需降低学习率(×0.7-0.9)<br>
+                                • 优先使用数据增强而非单纯重复<br>
+                                • 必须监控验证集防止过拟合
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label title="学习率。控制模型参数更新的步长，是训练中最关键的超参数之一。">学习率 (learning_rate)</label>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <input type="text" id="learning_rate" title="学习率。控制模型参数更新的步长，是训练中最关键的超参数之一。" style="flex: 1;">
+                            <button onclick="calculateRecommendedLearningRate()" class="btn" style="background: linear-gradient(45deg, #3498db, #2980b9); color: white; padding: 8px 12px; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 3px 6px rgba(0,0,0,0.3)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.2)'">🔧 软件推荐值</button>
+                            <button onclick="calculateGPTRecommendedLearningRate()" class="btn" style="background: linear-gradient(45deg, #4ECDC4, #44A08D); color: white; padding: 8px 12px; border: none; border-radius: 6px; font-size: 12px; cursor: pointer; white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 3px 6px rgba(0,0,0,0.3)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.2)'">🤖 ChatGPT推荐值</button>
+                        </div>
+                        <div style="margin-top: 5px;">
+                            <span style="color: #666; cursor: pointer; user-select: none; display: inline-flex; align-items: center; gap: 5px;" 
+                                  onclick="toggleLearningRateRecommendationTip()" 
+                                  onmouseover="this.style.color='#3498db'" 
+                                  onmouseout="this.style.color='#666'" 
+                                  title="点击查看详细推荐逻辑">
+                                <span id="lr-tip-icon">💡</span> <strong>软件推荐提示</strong>
+                            </span>
+                            <span style="color: #666; cursor: pointer; user-select: none; display: inline-flex; align-items: center; gap: 5px; margin-left: 20px;" 
+                                  onclick="toggleChatGPTLearningRateRecommendationTip()" 
+                                  onmouseover="this.style.color='#4ECDC4'" 
+                                  onmouseout="this.style.color='#666'" 
+                                  title="点击查看ChatGPT推荐逻辑">
+                                <span id="chatgpt-lr-tip-icon">🤖</span> <strong>ChatGPT推荐提示</strong>
+                            </span>
+                            <div id="lr-recommendation-tip" style="display: none; color: #666; margin-top: 8px; line-height: 1.4; padding: 10px; background: #f8f9fa; border-radius: 6px; border-left: 3px solid #3498db;">
+                                <strong>⚙️ 软件推荐算法逻辑</strong><br><br>
+                                <strong>💡 学习率推荐（基于Wan2.2实战案例）：</strong><br>
+                                • <strong>Wan2.2 LoRA训练</strong>：3e-4是经验证的有效值，适合大多数场景<br>
+                                • <strong>T2V任务</strong>：1e-4 ~ 3e-4，视频生成需要更稳定的学习过程<br>
+                                • <strong>I2V任务</strong>：2e-4 ~ 5e-4，图像到视频转换可适当提高学习率<br><br>
+                                <strong>📊 优化器匹配（实战验证）：</strong><br>
+                                • <strong>AdamW8bit</strong>：3e-4，内存友好且效果稳定<br>
+                                • <strong>Lion</strong>：1e-4，需要较小学习率但收敛更快<br>
+                                • <strong>SGD</strong>：1e-2，需要配合动量使用<br><br>
+                                <strong>🎯 数据量调整策略：</strong><br>
+                                • 小数据集(≤20张)：降低至1e-4 ~ 2e-4<br>
+                                • 中等数据集(21-100张)：标准3e-4<br>
+                                • 大数据集(>100张)：可提升至5e-4<br>
+                                <span id="lr_calculation_result" style="color: #28a745; font-weight: bold;"></span>
+                            </div>
+                            <div id="chatgpt-lr-recommendation-tip" style="display: none; color: #666; margin-top: 8px; line-height: 1.4; padding: 10px; background: #f0fffe; border-radius: 6px; border-left: 3px solid #4ECDC4;">
+                                <strong>🤖 ChatGPT推荐算法</strong><br><br>
+                                <strong>📊 核心计算公式：</strong><br>
+                                • <strong>基础学习率</strong> = 根据数据集大小和任务类型确定<br>
+                                • <strong>视频时长调整因子</strong> = max(0.5, min(2.0, 10.0 / 视频时长))<br>
+                                • <strong>最终学习率</strong> = 基础学习率 × 视频时长调整因子<br><br>
+                                <strong>🎯 I2V与T2V差异化策略：</strong><br>
+                                • <strong>I2V（图生视频）</strong>：更保守的学习率，避免对输入图像过拟合<br>
+                                &nbsp;&nbsp;- 小数据集：1e-5，中等：1.5e-5，大数据集：2e-5，超大：2.5e-5<br>
+                                • <strong>T2V（文生视频）</strong>：相对更高的学习率，建模文本到视频映射<br>
+                                &nbsp;&nbsp;- 小数据集：2e-5，中等：3e-5，大数据集：4e-5，超大：5e-5<br><br>
+                                <strong>⚠️ 重要提醒：</strong><br>
+                                • 优化器类型会影响最终推荐值<br>
+                                • LoRA rank越高，建议学习率适当降低<br>
+                                • 视频时长过短或过长都需要调整学习率<br>
+                                <span id="chatgpt_lr_calculation_result" style="color: #28a745; font-weight: bold;"></span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- ChatGPT参数推荐按钮 -->
+                    <div style="text-align: center; margin: 15px 0;">
+                        <button onclick="calculateChatGPTRecommendedParams()" class="btn" style="background: linear-gradient(45deg, #FF6B6B, #FF8E53); color: white; padding: 12px 25px; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; box-shadow: 0 4px 8px rgba(0,0,0,0.2); transition: all 0.3s ease; font-weight: bold;" title="一键ChatGPT推荐所有训练参数">
+                            🤖 一键 ChatGPT 推荐参数
+                        </button>
+                        <div id="chatgpt_params_result" style="margin-top: 8px; font-size: 12px; color: #666; line-height: 1.4; padding: 8px; background: #f8f9fa; border-radius: 6px; border-left: 4px solid #007bff; display: none;">
+                            <!-- ChatGPT推荐结果将显示在这里 -->
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label title="LoRA维度。控制低秩矩阵的维度，影响模型容量。">LoRA维度 (network_dim)</label>
+                        <input type="number" id="network_dim" min="4" max="128" title="LoRA维度。控制低秩矩阵的维度，影响模型容量。">
+                        <small style="color: #666; display: block; margin-top: 5px; line-height: 1.4;">
+                            💡 <strong>GPT推荐值：</strong><br>
+                            • <strong>小数据集(≤20张)</strong>：16-32，防止过拟合<br>
+                            • <strong>中等数据集(21-100张)</strong>：32-64，平衡效果和训练稳定性<br>
+                            • <strong>大数据集(>100张)</strong>：64-128，充分学习复杂特征<br>
+                            • <strong>视频训练</strong>：通常需要比图片训练更高的维度<br>
+                        </small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label title="网络Alpha值。控制LoRA权重缩放。">网络Alpha (network_alpha)</label>
+                        <input type="number" id="network_alpha" min="1" max="1024" value="32" title="网络Alpha值。控制LoRA权重缩放。">
+                        <small style="color: #666; display: block; margin-top: 5px; line-height: 1.4;">
+                            💡 <strong>GPT推荐值：</strong><br>
+                            • <strong>经典配比</strong>：Alpha = Dim，保持1:1比例是最稳定的选择<br>
+                            • <strong>保守配置</strong>：Alpha = Dim/2，降低学习强度，适合精细调整<br>
+                            • <strong>常用组合</strong>：Dim=32时Alpha=16-32，Dim=64时Alpha=32-64<br>
+                        </small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label title="最大训练轮数。控制训练的总轮数。">最大训练轮数 (max_train_epochs)</label>
+                        <input type="number" id="max_train_epochs" min="1" max="100" title="最大训练轮数。控制训练的总轮数。">
+                        <small style="color: #666; display: block; margin-top: 5px; line-height: 1.4;">
+                            💡 <strong>GPT推荐值：</strong><br>
+                            • <strong>小数据集(≤20张)</strong>：200-400轮，需要更多轮次学习特征<br>
+                            • <strong>中等数据集(21-100张)</strong>：100-200轮，平衡效果和效率<br>
+                            • <strong>大数据集(>100张)</strong>：50-100轮，避免过度训练<br>
+                            • <strong>视频训练</strong>：通常需要比图片训练更多的轮数<br>
+                            • 建议监控损失曲线，在验证损失不再下降时提前停止<br>
+                        </small>
+                    </div>
+                    
+                    <!-- 高级参数折叠区域 -->
+                    <div class="collapsible-section">
+                        <button type="button" class="collapsible-header" onclick="toggleSection('advanced-params')">
+                            <span>⚙️ 高级参数 (可选)</span>
+                            <span class="toggle-icon" id="advanced-toggle-icon">▼</span>
+                        </button>
+                        <div class="collapsible-content" id="advanced-params">
+                            
+                            <div class="form-group">
+                                <label title="每N轮保存一次模型检查点。">每N轮保存 (save_every_n_epochs)</label>
+                                <input type="number" id="save_every_n_epochs" min="1" max="10" title="每N轮保存一次模型检查点。">
+                                <small style="color: #666; display: block; margin-top: 5px;">💡 推荐值：5，平衡存储空间和检查点数量</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label title="随机种子。确保训练结果可复现。">随机种子 (seed)</label>
+                                <input type="number" id="seed" min="0" title="随机种子。确保训练结果可复现。">
+                                <small style="color: #666; display: block; margin-top: 5px;">💡 推荐值：42，固定种子确保结果可复现</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label title="混合精度训练。节省显存且保持训练精度。">混合精度 (mixed_precision)</label>
+                                <select id="mixed_precision" title="混合精度训练。节省显存且保持训练精度。">
+                                    <option value="bf16" selected>bf16</option>
+                                    <option value="fp16">fp16</option>
+                                    <option value="no">no</option>
+                                </select>
+                                <small style="color: #666; display: block; margin-top: 5px;">💡 推荐值：bf16，最佳性能和稳定性平衡</small>
+                            </div>
+                            
+
+                            
+                            <div class="form-group">
+                                <label title="优化器类型。">优化器 (optimizer_type)</label>
+                                <select id="optimizer_type" title="优化器类型。">
+                                    <option value="adamw8bit" selected>adamw8bit</option>
+                                    <option value="AdamW">AdamW</option>
+                                    <option value="Lion">Lion</option>
+                                    <option value="SGDNesterov">SGDNesterov</option>
+                                    <option value="Adafactor">Adafactor</option>
+                                </select>
+                                <small style="color: #666; display: block; margin-top: 5px;">💡 推荐值：adamw8bit，节省内存</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label title="时间步采样方法。">时间步采样 (timestep_sampling)</label>
+                                <select id="timestep_sampling" title="时间步采样方法。">
+                                    <option value="shift" selected>shift</option>
+                                    <option value="uniform">uniform</option>
+                                    <option value="sigma">sigma</option>
+                                    <option value="sigmoid">sigmoid</option>
+                                </select>
+                                <small style="color: #666; display: block; margin-top: 5px;">💡 推荐值：shift，适用于Wan2.2模型</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label title="训练任务类型。根据选择的任务类型自动设置。">任务类型 (task)</label>
+                                <input type="text" id="task" value="t2v-A14B" readonly title="训练任务类型。根据选择的任务类型自动设置。">
+                                <small style="color: #666; display: block; margin-top: 5px;">💡 自动设置：T2V为t2v-A14B，I2V为i2v-A14B</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label title="损失权重方案。官方推荐默认值：none。">权重方案 (weighting_scheme)</label>
+                                <select id="weighting_scheme" title="损失权重方案。官方推荐默认值：none。">
+                                    <option value="none" selected>none</option>
+                                    <option value="logit_normal">logit_normal</option>
+                                    <option value="mode">mode</option>
+                                    <option value="cosmap">cosmap</option>
+                                    <option value="sigma_sqrt">sigma_sqrt</option>
+                                </select>
+                                <small style="color: #666; display: block; margin-top: 5px;">💡 推荐值：none，官方默认权重方案</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label title="日志目录路径。存储训练日志和TensorBoard数据。">日志目录 (logging_dir)</label>
+                                <input type="text" id="logging_dir" title="日志目录路径。存储训练日志和TensorBoard数据。">
+                                <small style="color: #666; display: block; margin-top: 5px;">💡 建议值：./logs，用于存储TensorBoard日志</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label title="日志记录工具 - 官方默认：tensorboard。">日志工具 (log_with)</label>
+                                <select id="log_with" title="日志记录工具 - 官方默认：tensorboard。">
+                                    <option value="tensorboard" selected>tensorboard</option>
+                                    <option value="wandb">wandb</option>
+                                    <option value="all">all</option>
+                                </select>
+                                <small style="color: #666; display: block; margin-top: 5px;">💡 官方推荐：tensorboard，可视化训练过程</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label title="启用FP8基础模型量化。节省显存，提升训练效率。">FP8基础量化 (fp8_base)</label>
+                                <input type="checkbox" id="fp8_base" checked title="启用FP8基础模型量化。节省显存，提升训练效率。">
+                                <small style="color: #666; display: block; margin-top: 5px;">💡 推荐：开启，显著节省显存占用</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label title="T5编码器使用FP8精度。节省T5编码器显存占用。">T5编码器FP8 (fp8_t5)</label>
+                                <input type="checkbox" id="fp8_t5" title="T5编码器使用FP8精度。节省T5编码器显存占用。">
+                                <small style="color: #666; display: block; margin-top: 5px;">💡 可选：进一步节省T5编码器显存</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label title="使用缩放FP8精度。进一步节省显存，需要支持的硬件。">缩放FP8精度 (fp8_scaled)</label>
+                                <input type="checkbox" id="fp8_scaled" title="使用缩放FP8精度。进一步节省显存，需要支持的硬件。">
+                                <small style="color: #666; display: block; margin-top: 5px;">💡 高级：需要支持FP8的硬件</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label title="时间步边界。T2V默认875，I2V默认900，用于切换高低噪声模型。">时间步边界 (timestep_boundary)</label>
+                                <input type="number" id="timestep_boundary" min="0" max="1000" value="875" title="时间步边界。T2V默认875，I2V默认900，用于切换高低噪声模型。">
+                                <small style="color: #666; display: block; margin-top: 5px;">💡 T2V默认875，I2V默认900</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label title="高噪声DiT模型路径。用于高噪声时间步的DiT模型，与dit配合使用。">高噪声DiT模型 (dit_high_noise)</label>
+                                <div style="display: flex; gap: 10px; align-items: center;">
+                                    <input type="text" id="dit_high_noise" title="高噪声DiT模型路径。用于高噪声时间步的DiT模型，与dit配合使用。" style="flex: 1;">
+                                    <button type="button" onclick="selectFileWithDialog('dit_high_noise')" class="btn" style="padding: 8px 12px; font-size: 12px;">📁 选择</button>
+                                </div>
+                                <small style="color: #666; display: block; margin-top: 5px;">💡 可选：用于高噪声时间步的DiT模型</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label title="启用梯度检查点。节省显存。">梯度检查点 (gradient_checkpointing)</label>
+                                <input type="checkbox" id="gradient_checkpointing" checked title="启用梯度检查点。节省显存。">
+                                <small style="color: #666; display: block; margin-top: 5px;">💡 推荐：开启，节省显存</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label title="离散流偏移。T2V推荐12.0，I2V推荐5.0。">离散流偏移 (discrete_flow_shift)</label>
+                                <input type="number" id="discrete_flow_shift" step="0.1" min="0" value="12.0" title="离散流偏移。T2V推荐12.0，I2V推荐5.0。">
+                                <small style="color: #666; display: block; margin-top: 5px;">💡 T2V: 12.0, I2V: 5.0</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label title="最小时间步。默认0。">最小时间步 (min_timestep)</label>
+                                <input type="number" id="min_timestep" min="0" max="1000" value="0" title="最小时间步。默认0。">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label title="最大时间步。默认1000。">最大时间步 (max_timestep)</label>
+                                <input type="number" id="max_timestep" min="0" max="1000" value="1000" title="最大时间步。默认1000。">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label title="网络模块。默认networks.lora_wan。">网络模块 (network_module)</label>
+                                <input type="text" id="network_module" value="networks.lora_wan" title="网络模块。默认networks.lora_wan。">
+                            </div>
+                            
+
+                            
+                            <div class="form-group">
+                                <label title="数据加载器工作进程数。默认2。">数据加载器工作进程数 (max_data_loader_n_workers)</label>
+                                <input type="number" id="max_data_loader_n_workers" min="0" value="2" title="数据加载器工作进程数。默认2。">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label title="持久化数据加载器。默认关闭。">持久化数据加载器 (persistent_data_loader_workers)</label>
+                                <input type="checkbox" id="persistent_data_loader_workers" title="持久化数据加载器。默认关闭。">
+                                <small style="color: #666; display: block; margin-top: 5px;">💡 可选：开启可能提升数据加载效率</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label title="启用SDPA注意力机制。推荐开启。">SDPA (sdpa)</label>
+                                <input type="checkbox" id="sdpa" checked title="启用SDPA注意力机制。推荐开启。">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label title="VAE缓存到CPU。节省显存但影响速度。">VAE缓存到CPU (vae_cache_cpu)</label>
+                                <input type="checkbox" id="vae_cache_cpu" title="VAE缓存到CPU。节省显存但影响速度。">
+                                <small style="color: #666; display: block; margin-top: 5px;">💡 提示：开启可节省显存但会影响速度</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label title="内存优化策略。两个选项互斥，只能选择其中一个。">内存优化策略</label>
+                                <select id="memory_optimization_strategy" title="选择内存优化策略。offload_inactive_dit卸载非活跃DiT到CPU，blocks_to_swap交换指定数量的块到CPU。">
+                                    <option value="offload_inactive_dit" selected>卸载非活跃DiT (offload_inactive_dit)</option>
+                                    <option value="blocks_to_swap">块交换 (blocks_to_swap)</option>
+                                </select>
+                                <small style="color: #666; display: block; margin-top: 5px;">💡 默认推荐：offload_inactive_dit，适合大多数配置</small>
+                            </div>
+                            
+                            <div class="form-group" id="blocks_to_swap_config" style="display: none;">
+                                <label title="交换到CPU的块数量。在VRAM和内存间交换模型块以节省显存。">块交换数量</label>
+                                <input type="number" id="blocks_to_swap" min="0" max="40" value="20" title="交换到CPU的块数量。在VRAM和内存间交换模型块以节省显存。">
+                                <small style="color: #666; display: block; margin-top: 5px;">💡 推荐值：20，适合4090+98G内存配置</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label title="每个进程的CPU线程数。默认1。">CPU线程数 (num_cpu_threads_per_process)</label>
+                                <input type="number" id="num_cpu_threads_per_process" min="1" value="1" title="每个进程的CPU线程数。默认1。">
+                            </div>
+                            
+                            <!-- 断点续训选项 -->
+                            <div class="form-group">
+                                <label title="开启后占用大量磁盘空间，可实现真正的断点续训，保存完整训练状态。">
+                                    <input type="checkbox" id="save_state" title="开启后占用大量磁盘空间，可实现真正的断点续训，保存完整训练状态。" style="margin-right: 8px;">
+                                    保存训练状态 (save_state)
+                                </label>
+                                <small style="color: #666; display: block; margin-top: 5px;">💡 开启后占用大量磁盘空间，可实现真正的断点续训，保存完整训练状态</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label title="从上次训练状态恢复，需修改轮数（如之前训练10轮，5轮中断，需改为5轮以完成剩余训练，不可再用10轮）。">
+                                    <input type="checkbox" id="resume_training" onchange="toggleResumeOptions()" title="从上次训练状态恢复，需修改轮数（如之前训练10轮，5轮中断，需改为5轮以完成剩余训练，不可再用10轮）。" style="margin-right: 8px;">
+                                    恢复训练状态 (resume)
+                                </label>
+                                <small style="color: #666; display: block; margin-top: 5px;">💡 从上次训练状态恢复，需修改轮数（如之前训练10轮，5轮中断，需改为5轮以完成剩余训练，不可再用10轮）也可以理解为在这个基础上再训练多少轮！</small>
+                            </div>
+                            
+                            <div class="form-group" id="resume_path_group" style="display: none;">
+                                <label title="指定之前保存的状态目录，实现真正的断点续训。">恢复训练状态路径</label>
+                                <div style="display: flex; gap: 10px;">
+                                    <input type="text" id="resume" title="指定之前保存的状态目录，实现真正的断点续训。" style="flex: 1;">
+                                    <button type="button" onclick="selectFolder('resume')" class="btn" style="padding: 8px 12px; font-size: 12px;">📁 选择</button>
+                                </div>
+                                <small style="color: #666; display: block; margin-top: 5px;">💡 选择之前保存的状态目录，如 ./output/wan22-lora-000006-state</small>
+                            </div>
+
+                            
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 配置操作面板 -->
+            <div class="panel">
+                <h2>💾 配置管理</h2>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button onclick="saveConfig()" class="btn">💾 保存配置</button>
+                    <button onclick="loadConfig()" class="btn">📂 加载配置</button>
+                    <button onclick="resetConfig()" class="btn">🔄 重置配置</button>
+                </div>
+            </div>
+            
+            <!-- 预估训练时间面板 -->
+            <div class="panel">
+                <h2>⏱️ 预估训练时间</h2>
+                
+                <!-- 输入参数区域 -->
+                <div class="form-group">
+                    <label for="avg_step_time">平均每步耗时 (秒):</label>
+                    <input type="number" id="avg_step_time" step="0.01" value="2.92" placeholder="例如: 2.92">
+                    <small style="color: #666; font-size: 12px;">💡 建议根据实际训练经验调整此值</small>
+                </div>
+                
+                <div style="text-align: center; margin: 15px 0;">
+                    <button onclick="estimateTrainingTime()" class="btn" style="background: linear-gradient(45deg, #4CAF50, #45a049); color: white; padding: 10px 20px; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.3)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.2)'">
+                        📊 开始估算训练时间
+                    </button>
+                </div>
+                
+                <!-- 计算结果展示区域 -->
+                <div id="estimation_results" style="display: none; background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); border-radius: 12px; padding: 20px; margin-top: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                    
+                    <!-- 最终结果 -->
+                    <div style="text-align: center; margin-bottom: 20px; padding: 15px; background: rgba(255,255,255,0.8); border-radius: 8px; border-left: 4px solid #4CAF50;">
+                        <h3 style="margin: 0 0 10px 0; color: #2c3e50; font-size: 18px;">🎯 预估训练时间</h3>
+                        <div id="final_time_result" style="font-size: 24px; font-weight: bold; color: #27ae60; text-shadow: 1px 1px 2px rgba(0,0,0,0.1);">--</div>
+                    </div>
+                    
+                    <!-- 计算步骤详情 -->
+                    <div style="background: rgba(255,255,255,0.9); border-radius: 8px; padding: 15px; margin-bottom: 15px;">
+                        <h4 style="margin: 0 0 15px 0; color: #34495e; border-bottom: 2px solid #3498db; padding-bottom: 5px;">📋 计算步骤详情</h4>
+                        
+                        <!-- 数据集信息 -->
+                        <div style="margin-bottom: 12px; padding: 10px; background: #ecf0f1; border-radius: 6px; border-left: 3px solid #3498db;">
+                            <div style="font-weight: bold; color: #2c3e50; margin-bottom: 5px;">📁 数据集文件数量</div>
+                            <div id="dataset_files_display" style="font-size: 16px; color: #27ae60;">-- 个文件</div>
+                            <small style="color: #7f8c8d;">来源: dataset_config 配置文件中的 image_directory 路径</small>
+                        </div>
+                        
+                        <!-- 训练参数 -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
+                            <div style="padding: 10px; background: #ecf0f1; border-radius: 6px; border-left: 3px solid #e74c3c;">
+                                <div style="font-weight: bold; color: #2c3e50; margin-bottom: 5px;">🔢 批次大小</div>
+                                <div id="batch_size_display" style="font-size: 16px; color: #e74c3c;">--</div>
+                                <small style="color: #7f8c8d;">来源: train_batch_size 参数</small>
+                            </div>
+                            <div style="padding: 10px; background: #ecf0f1; border-radius: 6px; border-left: 3px solid #f39c12;">
+                                <div style="font-weight: bold; color: #2c3e50; margin-bottom: 5px;">🔄 重复次数</div>
+                                <div id="num_repeats_display" style="font-size: 16px; color: #f39c12;">--</div>
+                                <small style="color: #7f8c8d;">来源: num_repeats 参数</small>
+                            </div>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                            <div style="padding: 10px; background: #ecf0f1; border-radius: 6px; border-left: 3px solid #9b59b6;">
+                                <div style="font-weight: bold; color: #2c3e50; margin-bottom: 5px;">🎯 训练轮次</div>
+                                <div id="max_epochs_display" style="font-size: 16px; color: #9b59b6;">--</div>
+                                <small style="color: #7f8c8d;">来源: max_train_epochs 参数</small>
+                            </div>
+                            <div style="padding: 10px; background: #ecf0f1; border-radius: 6px; border-left: 3px solid #1abc9c;">
+                                <div style="font-weight: bold; color: #2c3e50; margin-bottom: 5px;">⏱️ 每步耗时</div>
+                                <div id="step_time_display" style="font-size: 16px; color: #1abc9c;">-- 秒</div>
+                                <small style="color: #7f8c8d;">来源: 用户输入的平均每步耗时</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 计算公式展示 -->
+                    <div style="background: rgba(255,255,255,0.9); border-radius: 8px; padding: 15px;">
+                        <h4 style="margin: 0 0 15px 0; color: #34495e; border-bottom: 2px solid #e67e22; padding-bottom: 5px;">🧮 计算公式</h4>
+                        
+                        <div style="margin-bottom: 15px; padding: 12px; background: #fdf2e9; border-radius: 6px; border: 1px solid #f39c12;">
+                            <div style="font-weight: bold; color: #d35400; margin-bottom: 8px;">第一步：计算总步数</div>
+                            <div style="font-family: 'Courier New', monospace; background: #fff; padding: 8px; border-radius: 4px; border-left: 3px solid #f39c12; color: #2c3e50; font-weight: bold;">
+                                总步数 = (数据集文件数 × 重复次数 ÷ 批次大小) × 训练轮次
+                            </div>
+                            <div id="total_steps_calculation" style="margin-top: 8px; color: #d35400; font-weight: bold;">总步数 = (-- × -- ÷ --) × -- = -- 步</div>
+                        </div>
+                        
+                        <div style="padding: 12px; background: #eaf2f8; border-radius: 6px; border: 1px solid #3498db;">
+                            <div style="font-weight: bold; color: #2980b9; margin-bottom: 8px;">第二步：计算预估时间</div>
+                            <div style="font-family: 'Courier New', monospace; background: #fff; padding: 8px; border-radius: 4px; border-left: 3px solid #3498db; color: #2c3e50; font-weight: bold;">
+                                预估时间 = 总步数 × 每步耗时
+                            </div>
+                            <div id="time_calculation" style="margin-top: 8px; color: #2980b9; font-weight: bold;">预估时间 = -- × -- = -- 秒</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let isRunning = false;
+        let currentTaskType = 't2v'; // 默认文生视频
+        let lastLogCount = 0;
+        let currentRunningTask = null; // 当前运行的任务类型：'training', 'caching', null
+        
+        function selectTaskType(taskType) {
+            currentTaskType = taskType;
+            
+            // 更新按钮状态
+            const t2vBtn = document.getElementById('t2v-btn');
+            const i2vBtn = document.getElementById('i2v-btn');
+            const currentBtn = document.getElementById(taskType + '-btn');
+            
+            if (t2vBtn) t2vBtn.classList.remove('active');
+            if (i2vBtn) i2vBtn.classList.remove('active');
+            if (currentBtn) currentBtn.classList.add('active');
+            
+            // 根据任务类型自动填充参数并设置为只读
+            const taskInput = document.getElementById('task');
+            const discreteFlowShiftInput = document.getElementById('discrete_flow_shift');
+            const timestepBoundaryInput = document.getElementById('timestep_boundary');
+            
+            if (taskType === 'i2v') {
+                // I2V参数设置
+                if (taskInput) {
+                    taskInput.value = 'i2v-A14B';
+                    taskInput.readOnly = true;
+                }
+                if (discreteFlowShiftInput) {
+                    discreteFlowShiftInput.value = '5.0';
+                    discreteFlowShiftInput.readOnly = true;
+                }
+                if (timestepBoundaryInput) {
+                    timestepBoundaryInput.value = '900';
+                    timestepBoundaryInput.readOnly = true;
+                }
+                
+                addLogEntry({
+                    level: 'info',
+                    message: '已切换到图生视频(I2V)模式，参数已自动设置：task=i2v-A14B, discrete_flow_shift=5.0, timestep_boundary=900',
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            } else {
+                // T2V参数设置
+                if (taskInput) {
+                    taskInput.value = 't2v-A14B';
+                    taskInput.readOnly = true;
+                }
+                if (discreteFlowShiftInput) {
+                    discreteFlowShiftInput.value = '12.0';
+                    discreteFlowShiftInput.readOnly = true;
+                }
+                if (timestepBoundaryInput) {
+                    timestepBoundaryInput.value = '875';
+                    timestepBoundaryInput.readOnly = true;
+                }
+                
+                addLogEntry({
+                    level: 'info',
+                    message: '已切换到文生视频(T2V)模式，参数已自动设置：task=t2v-A14B, discrete_flow_shift=12.0, timestep_boundary=875',
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            }
+        }
+        
+        function setButtonsEnabled(enabled) {
+            const buttons = ['cache-vae-btn', 'cache-te-btn', 'train-btn'];
+            buttons.forEach(id => {
+                document.getElementById(id).disabled = !enabled;
+            });
+            // 停止训练按钮只在训练时可用
+            document.getElementById('stop-btn').disabled = enabled || currentRunningTask !== 'training';
+            isRunning = !enabled;
+        }
+        
+        // 新增：设置训练按钮状态
+        function setTrainingButtonsEnabled(enabled) {
+            const buttons = ['cache-vae-btn', 'cache-te-btn', 'train-btn'];
+            buttons.forEach(id => {
+                document.getElementById(id).disabled = !enabled;
+            });
+            // 停止训练按钮只在训练时启用
+            document.getElementById('stop-btn').disabled = enabled;
+            isRunning = !enabled;
+            currentRunningTask = enabled ? null : 'training';
+        }
+        
+        // 新增：设置缓存按钮状态
+        function setCacheButtonsEnabled(enabled) {
+            const buttons = ['cache-vae-btn', 'cache-te-btn', 'train-btn'];
+            buttons.forEach(id => {
+                document.getElementById(id).disabled = !enabled;
+            });
+            // 缓存任务时停止训练按钮保持禁用
+            document.getElementById('stop-btn').disabled = true;
+            isRunning = !enabled;
+            currentRunningTask = enabled ? null : 'caching';
+        }
+        
+        function updateStatus(status, message) {
+            const indicator = document.getElementById('status-indicator');
+            const text = document.getElementById('status-text');
+            
+            indicator.className = `status-indicator status-${status}`;
+            text.textContent = message;
+        }
+        
+        function updateProgress(percent) {
+            document.getElementById('progress-fill').style.width = percent + '%';
+        }
+        
+        // 使用现代文件选择API的函数
+        async function selectFileModern(inputId, fileExtension) {
+            if (window.showOpenFilePicker) {
+                try {
+                    const [fileHandle] = await window.showOpenFilePicker({
+                        types: [{
+                            description: 'Files',
+                            accept: { '*/*': [fileExtension] }
+                        }]
+                    });
+                    const file = await fileHandle.getFile();
+                    
+                    // 现代浏览器API无法获取完整路径，只能获取文件名
+                    // 为convert_input_file提供智能路径建议
+                    if (inputId === 'convert_input_file') {
+                        const fileName = file.name;
+                        const currentDir = 'C:\\Users\\oskey\\ai\\musubi-tuner';
+                        // 提供常见的LoRA文件位置建议
+                        const suggestedPath = currentDir + '\\output\\' + fileName;
+                        document.getElementById(inputId).value = suggestedPath;
+                        
+                        // 更新提示信息，不使用背景色
+                        const inputElement = document.getElementById(inputId);
+                        inputElement.title = '已自动填入建议路径: ' + suggestedPath + ' (请根据实际文件位置修改)';
+                    } else {
+                        document.getElementById(inputId).value = file.name;
+                    }
+                    return;
+                } catch (err) {
+                    // 用户取消选择或API不支持，回退到传统方式
+                }
+            }
+            // 回退到传统文件选择
+            selectFileTraditional(inputId, fileExtension);
+        }
+        
+        function selectFileTraditional(inputId, fileExtension) {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = fileExtension;
+            input.onchange = function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    let fullPath;
+                    
+                    if (file.path) {
+                        // 如果浏览器支持file.path，直接使用完整路径
+                        fullPath = file.path;
+                    } else {
+                        // 浏览器不支持file.path时，根据文件类型构建默认路径
+                        const currentDir = 'C:\\Users\\oskey\\ai\\musubi-tuner';
+                        const fileName = file.name;
+                        
+                        if (fileExtension === '.toml') {
+                            fullPath = currentDir + '\\ai_data\\datasets\\' + fileName;
+                        } else if (fileExtension === '.safetensors') {
+                            if (inputId === 'dit' || inputId === 'dit_high_noise') {
+                                fullPath = currentDir + '\\model\\diffusion_models\\' + fileName;
+                            } else if (inputId === 't5') {
+                                fullPath = currentDir + '\\model\\text_encoders\\' + fileName;
+                            } else if (inputId === 'vae') {
+                                fullPath = currentDir + '\\model\\vae\\' + fileName;
+                            } else if (inputId === 'convert_input_file') {
+                                // LoRA转换输入文件，保持文件名，让用户手动编辑路径
+                                fullPath = fileName;
+                            } else {
+                                // 其他情况，使用当前目录
+                                fullPath = currentDir + '\\' + fileName;
+                            }
+                        } else {
+                            // 非.safetensors和.toml文件，使用当前目录
+                            fullPath = currentDir + '\\' + fileName;
+                        }
+                    }
+                    
+                    document.getElementById(inputId).value = fullPath;
+                    
+                    // 如果是数据集配置文件，自动读取batch_size和num_repeats
+                    if (inputId === 'dataset_config' && fileExtension === '.toml') {
+                        readBatchSizeFromToml(fullPath);
+                        readNumRepeatsFromToml(fullPath);
+                    }
+                }
+            };
+            input.click();
+        }
+        
+        function readBatchSizeFromToml(tomlPath) {
+            fetch('/api/read_batch_size_from_toml', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ toml_path: tomlPath })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.batch_size !== null) {
+                    document.getElementById('train_batch_size').value = data.batch_size;
+                    addLogEntry({
+                        level: 'info',
+                        message: `已从 ${tomlPath} 读取 batch_size: ${data.batch_size}`,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                } else {
+                    addLogEntry({
+                        level: 'warning',
+                        message: data.message || '无法从TOML文件读取batch_size',
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                }
+            })
+            .catch(error => {
+                addLogEntry({
+                    level: 'error',
+                    message: '读取TOML文件失败: ' + error.message,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            });
+        }
+        
+        function readNumRepeatsFromToml(tomlPath) {
+            fetch('/api/read_num_repeats_from_toml', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ toml_path: tomlPath })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.num_repeats !== null) {
+                    document.getElementById('num_repeats').value = data.num_repeats;
+                    addLogEntry({
+                        level: 'info',
+                        message: `已从 ${tomlPath} 读取 num_repeats: ${data.num_repeats}`,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                } else {
+                    addLogEntry({
+                        level: 'warning',
+                        message: data.message || '无法从TOML文件读取num_repeats',
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                }
+            })
+            .catch(error => {
+                addLogEntry({
+                    level: 'error',
+                    message: '读取TOML文件失败: ' + error.message,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            });
+        }
+        
+        function loadDefaultConfig() {
+            // 前端默认配置，与getConfig函数保持一致
+            const defaultConfig = {
+                // 环境配置
+                enable_venv: true,
+                venv_python_path: './venv/Scripts/',
+                
+                // 核心模型路径
+                dit: './model/diffusion_models/wan2.2_t2v_low_noise_14B_fp16.safetensors',
+                dit_high_noise: './model/diffusion_models/wan2.2_t2v_high_noise_14B_fp16.safetensors',
+                vae: './model/vae/wan_2.1_vae.safetensors',
+                t5: './model/text_encoders/models_t5_umt5-xxl-enc-bf16.pth',
+                dataset_config: './ai_data/datasets/lovemf_config_t2v.toml',
+                
+                // 任务配置
+                task: 't2v-A14B',
+                
+                // 训练核心参数
+                mixed_precision: 'fp16',
+                timestep_sampling: 'shift',
+                discrete_flow_shift: 3.0,
+                timestep_boundary: 0.875,
+                min_timestep: 0,
+                max_timestep: 1000,
+                
+                // 优化器配置
+                optimizer_type: 'AdamW8bit',
+                learning_rate: '2e-4',
+                
+                // 网络配置
+                network_module: 'networks.lora_wan',
+                network_dim: 32,
+                network_alpha: 32,
+                
+                // 训练控制
+                max_train_epochs: 16,
+                save_every_n_epochs: 1,
+                save_state: false,
+                resume_training: false,
+                resume: '',
+                seed: 42,
+                train_batch_size: 1,
+                num_repeats: 1,
+                
+                // 数据加载
+                max_data_loader_n_workers: 2,
+                persistent_data_loader_workers: true,
+                
+                // 优化选项
+                sdpa: true,
+                gradient_checkpointing: true,
+                fp8_base: false,
+                fp8_t5: false,
+                fp8_scaled: false,
+                vae_cache_cpu: false,
+                offload_inactive_dit: false,
+                blocks_to_swap: 20,
+                
+                // 输出配置
+                output_dir: './output',
+                output_name: 'wan22-lora',
+                logging_dir: './logs',
+                log_with: 'tensorboard',
+                
+                // 系统配置
+                num_cpu_threads_per_process: 1,
+
+            };
+            
+            // 设置任务类型
+            if (defaultConfig.task) {
+                const taskType = defaultConfig.task.includes('i2v') ? 'i2v' : 't2v';
+                selectTaskType(taskType);
+            }
+            
+            // 填充表单
+            Object.keys(defaultConfig).forEach(key => {
+                const element = document.getElementById(key);
+                if (element) {
+                    if (element.type === 'checkbox') {
+                        element.checked = defaultConfig[key];
+                    } else {
+                        element.value = defaultConfig[key];
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('推荐数据重复次数请求失败:', error);
+                addLogEntry({
+                    level: 'error',
+                    message: '❌ 推荐数据重复次数请求失败: ' + error.message,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            });
+            
+            addLogEntry({
+                level: 'info',
+                message: '已加载前端默认配置',
+                timestamp: new Date().toLocaleTimeString()
+            });
+        }
+        
+        // 使用后端API调用系统文件选择对话框（通用版本）
+        function selectFileWithDialog(inputId, fileType = 'all', title = '选择文件', initialDir = 'C:\\Users\\oskey\\ai\\musubi-tuner') {
+            // 显示加载状态
+            const button = event.target;
+            const originalText = button.textContent;
+            button.textContent = '选择中...';
+            button.disabled = true;
+            
+            // 根据输入框ID设置默认参数
+            let defaultFileType = fileType;
+            let defaultTitle = title;
+            let defaultInitialDir = initialDir;
+            
+            if (inputId === 'convert_input_file') {
+                defaultFileType = 'safetensors';
+                defaultTitle = '选择LoRA文件';
+                defaultInitialDir = 'C:\\Users\\oskey\\ai\\musubi-tuner\\output';
+            } else if (inputId === 'dataset_config') {
+                defaultFileType = 'toml';
+                defaultTitle = '选择数据集配置文件';
+                defaultInitialDir = 'C:\\Users\\oskey\\ai\\musubi-tuner\\ai_data\\datasets';
+            } else if (inputId === 'dit' || inputId === 'dit_high_noise') {
+                defaultFileType = 'safetensors';
+                defaultTitle = '选择DiT模型文件';
+                defaultInitialDir = 'C:\\Users\\oskey\\ai\\musubi-tuner\\model\\diffusion_models';
+            } else if (inputId === 't5') {
+                defaultFileType = 'safetensors';
+                defaultTitle = '选择T5文本编码器文件';
+                defaultInitialDir = 'C:\\Users\\oskey\\ai\\musubi-tuner\\model\\text_encoders';
+            } else if (inputId === 'vae') {
+                defaultFileType = 'safetensors';
+                defaultTitle = '选择VAE模型文件';
+                defaultInitialDir = 'C:\\Users\\oskey\\ai\\musubi-tuner\\model\\vae';
+            }
+            
+            // 调用后端API
+            fetch('/api/select_file', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    file_type: defaultFileType,
+                    title: defaultTitle,
+                    initial_dir: defaultInitialDir
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.filename) {
+                    // 将选择的文件路径填入输入框
+                    document.getElementById(inputId).value = data.filename;
+                    
+                    addLogEntry({
+                        level: 'info',
+                        message: `已选择文件: ${data.filename}`,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                } else {
+                    addLogEntry({
+                        level: 'warning',
+                        message: data.message || '文件选择失败',
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('文件选择API调用失败:', error);
+                addLogEntry({
+                    level: 'error',
+                    message: '文件选择功能调用失败，请检查后端服务',
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            })
+            .finally(() => {
+                // 恢复按钮状态
+                button.textContent = originalText;
+                button.disabled = false;
+            });
+        }
+        
+        function selectFolder(inputId) {
+            // 获取按钮元素并显示加载状态
+            const button = event.target;
+            const originalText = button.textContent;
+            button.textContent = '选择中...';
+            button.disabled = true;
+            
+            // 根据输入框ID设置默认参数
+            let defaultTitle = '选择文件夹';
+            let defaultInitialDir = 'C:\\Users\\oskey\\ai\\musubi-tuner';
+            
+            if (inputId === 'output_dir') {
+                defaultTitle = '选择输出目录';
+                defaultInitialDir = 'C:\\Users\\oskey\\ai\\musubi-tuner\\output';
+            } else if (inputId === 'convert_output_dir') {
+                defaultTitle = '选择转换后文件保存目录';
+                defaultInitialDir = 'C:\\Users\\oskey\\ai\\musubi-tuner\\output';
+            } else if (inputId === 'resume') {
+                defaultTitle = '选择训练状态目录';
+                defaultInitialDir = 'C:\\Users\\oskey\\ai\\musubi-tuner\\output';
+            } else if (inputId === 'venv_python_path') {
+                defaultTitle = '选择虚拟环境Scripts目录';
+                defaultInitialDir = 'C:\\Users\\oskey\\ai\\musubi-tuner\\venv\\Scripts';
+            }
+            
+            // 调用后端API
+            fetch('/api/select_folder', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    title: defaultTitle,
+                    initial_dir: defaultInitialDir
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.folder_path) {
+                    // 将选择的文件夹路径填入输入框
+                    document.getElementById(inputId).value = data.folder_path;
+                    
+                    addLogEntry({
+                        level: 'info',
+                        message: `已选择文件夹: ${data.folder_path}`,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                } else {
+                    addLogEntry({
+                        level: 'warning',
+                        message: data.message || '文件夹选择失败',
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('文件夹选择API调用失败:', error);
+                addLogEntry({
+                    level: 'error',
+                    message: '文件夹选择功能调用失败，请检查后端服务',
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            })
+            .finally(() => {
+                // 恢复按钮状态
+                button.textContent = originalText;
+                button.disabled = false;
+            });
+        }
+        
+        function getConfig() {
+            function safeGetValue(id, defaultValue = '', isCheckbox = false) {
+                const element = document.getElementById(id);
+                if (!element) {
+                    console.warn(`Element with id '${id}' not found, using default value:`, defaultValue);
+                    return defaultValue;
+                }
+                return isCheckbox ? element.checked : element.value;
+            }
+            
+            function safeGetIntValue(id, defaultValue = 0) {
+                const value = safeGetValue(id, defaultValue.toString());
+                return parseInt(value) || defaultValue;
+            }
+            
+            function safeGetFloatValue(id, defaultValue = 0.0) {
+                const value = safeGetValue(id, defaultValue.toString());
+                return parseFloat(value) || defaultValue;
+            }
+            
+            const config = {
+                // 环境配置
+                enable_venv: safeGetValue('enable_venv', true, true),
+                venv_python_path: safeGetValue('venv_python_path', './venv/Scripts/'),
+                
+                // 核心模型路径
+                dit: safeGetValue('dit', ''),
+                dit_high_noise: safeGetValue('dit_high_noise', ''),
+                vae: safeGetValue('vae', ''),
+                t5: safeGetValue('t5', ''),
+                dataset_config: safeGetValue('dataset_config', ''),
+                
+                // 任务配置
+                task: safeGetValue('task', currentTaskType === 'i2v' ? 'i2v-A14B' : 't2v-A14B'),
+                
+                // 训练核心参数
+                mixed_precision: safeGetValue('mixed_precision', 'fp16'),
+                timestep_sampling: safeGetValue('timestep_sampling', 'shift'),
+                weighting_scheme: safeGetValue('weighting_scheme', 'none'),
+                discrete_flow_shift: safeGetFloatValue('discrete_flow_shift', currentTaskType === 'i2v' ? 5.0 : 12.0),
+                timestep_boundary: safeGetIntValue('timestep_boundary', currentTaskType === 'i2v' ? 900 : 875),
+                min_timestep: safeGetIntValue('min_timestep', 0),
+                max_timestep: safeGetIntValue('max_timestep', 1000),
+                
+                // 优化器配置
+                optimizer_type: safeGetValue('optimizer_type', 'adamw8bit'),
+                learning_rate: safeGetValue('learning_rate', '2e-4'),
+                
+                // 网络配置
+                network_module: safeGetValue('network_module', 'networks.lora_wan'),
+                network_dim: safeGetIntValue('network_dim', 32),
+                network_alpha: safeGetIntValue('network_alpha', 32),
+                
+                // 训练控制
+                max_train_epochs: safeGetIntValue('max_train_epochs', 16),
+                save_every_n_epochs: safeGetIntValue('save_every_n_epochs', 1),
+                save_state: safeGetValue('save_state', false, true),
+                resume_training: safeGetValue('resume_training', false, true),
+                resume: safeGetValue('resume', ''),
+                seed: safeGetIntValue('seed', 42),
+                train_batch_size: safeGetIntValue('train_batch_size', 1),
+            num_repeats: safeGetIntValue('num_repeats', 1),
+                
+                // 数据加载
+                max_data_loader_n_workers: safeGetIntValue('max_data_loader_n_workers', 2),
+                persistent_data_loader_workers: safeGetValue('persistent_data_loader_workers', false, true),
+                
+                // 优化选项
+                sdpa: safeGetValue('sdpa', true, true),
+                gradient_checkpointing: safeGetValue('gradient_checkpointing', true, true),
+                fp8_base: safeGetValue('fp8_base', true, true),
+                fp8_t5: safeGetValue('fp8_t5', false, true),
+                // 内存优化策略处理
+                memory_optimization_strategy: document.getElementById('memory_optimization_strategy').value,
+                ...getMemoryOptimizationConfig(),
+                fp8_scaled: safeGetValue('fp8_scaled', false, true),
+                vae_cache_cpu: safeGetValue('vae_cache_cpu', false, true),
+                
+                // 输出配置
+                output_dir: safeGetValue('output_dir', './output'),
+                output_name: safeGetValue('output_name', 'wan22-lora'),
+                logging_dir: safeGetValue('logging_dir', './logs'),
+                log_with: safeGetValue('log_with', 'tensorboard'),
+                
+                // LoRA转换设置
+                convert_input_file: safeGetValue('convert_input_file', ''),
+                convert_output_dir: safeGetValue('convert_output_dir', ''),
+                
+                // 系统配置
+                num_cpu_threads_per_process: safeGetIntValue('num_cpu_threads_per_process', 1),
+                
+
+            };
+            
+            return config;
+        }
+        
+        function addLogEntry(entry) {
+            const logOutput = document.getElementById('log-output');
+            if (!logOutput) return;
+            
+            const shouldScroll = logOutput.scrollTop + logOutput.clientHeight >= logOutput.scrollHeight - 20;
+            
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry log-' + entry.level;
+            logEntry.innerHTML = `<span style="color: #888;">[${entry.timestamp}]</span> ${entry.message}`;
+            logOutput.appendChild(logEntry);
+            
+            lastLogCount++;
+            
+            if (shouldScroll) {
+                setTimeout(() => {
+                    logOutput.scrollTop = logOutput.scrollHeight;
+                }, 10);
+            }
+        }
+        
+        function startCacheVAE() {
+            if (isRunning) return;
+            
+            const config = getConfig();
+            setCacheButtonsEnabled(false);
+            updateStatus('running', '正在预缓存VAE Latents...');
+            
+            addLogEntry({
+                level: 'info',
+                message: '开始预缓存VAE Latents...',
+                timestamp: new Date().toLocaleTimeString()
+            });
+            
+            fetch('/api/cache_vae', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(config)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    isRunning = true;
+                    currentRunningTask = 'caching';
+                    addLogEntry({
+                        level: 'success',
+                        message: 'VAE Latents预缓存启动成功',
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                    pollStatus();
+                    startLogPolling(); // 开始轮询日志
+                } else {
+                    addLogEntry({
+                        level: 'error',
+                        message: 'VAE Latents预缓存启动失败: ' + data.message,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                    setCacheButtonsEnabled(true);
+                    updateStatus('error', '预缓存失败');
+                }
+            })
+            .catch(error => {
+                addLogEntry({
+                    level: 'error',
+                    message: '请求失败: ' + error.message,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+                setCacheButtonsEnabled(true);
+                updateStatus('error', '请求失败');
+            });
+        }
+        
+        function startCacheTextEncoder() {
+            if (isRunning) return;
+            
+            const config = getConfig();
+            setCacheButtonsEnabled(false);
+            updateStatus('running', '正在预缓存文本编码器输出...');
+            
+            addLogEntry({
+                level: 'info',
+                message: '开始预缓存文本编码器输出...',
+                timestamp: new Date().toLocaleTimeString()
+            });
+            
+            fetch('/api/cache_text_encoder', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(config)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    isRunning = true;
+                    currentRunningTask = 'caching';
+                    addLogEntry({
+                        level: 'success',
+                        message: '文本编码器输出预缓存启动成功',
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                    pollStatus();
+                    startLogPolling(); // 开始轮询日志
+                } else {
+                    addLogEntry({
+                        level: 'error',
+                        message: '文本编码器输出预缓存启动失败: ' + data.message,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                    setCacheButtonsEnabled(true);
+                    updateStatus('error', '预缓存失败');
+                }
+            })
+            .catch(error => {
+                addLogEntry({
+                    level: 'error',
+                    message: '请求失败: ' + error.message,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+                setCacheButtonsEnabled(true);
+                updateStatus('error', '请求失败');
+            });
+        }
+        
+        function startTraining() {
+            if (isRunning) return;
+            
+            const config = getConfig();
+            setTrainingButtonsEnabled(false);
+            updateStatus('running', '正在启动训练...');
+            
+            addLogEntry({
+                level: 'info',
+                message: `开始${currentTaskType === 'i2v' ? '图生视频' : '文生视频'}训练...`,
+                timestamp: new Date().toLocaleTimeString()
+            });
+            
+            fetch('/api/start_training', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(config)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    addLogEntry({
+                        level: 'success',
+                        message: '训练启动成功',
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                    pollStatus();
+                    startLogPolling(); // 开始轮询日志
+                } else {
+                    addLogEntry({
+                        level: 'error',
+                        message: '训练启动失败: ' + data.message,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                    setTrainingButtonsEnabled(true);
+                    updateStatus('error', '训练失败');
+                }
+            })
+            .catch(error => {
+                addLogEntry({
+                    level: 'error',
+                    message: '请求失败: ' + error.message,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+                setTrainingButtonsEnabled(true);
+                updateStatus('error', '请求失败');
+            });
+        }
+        
+        function stopTraining() {
+            if (!isRunning || currentRunningTask !== 'training') return;
+            
+            fetch('/api/stop_training', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                addLogEntry({
+                    level: 'info',
+                    message: '训练停止请求已发送',
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            })
+            .catch(error => {
+                addLogEntry({
+                    level: 'error',
+                    message: '停止训练失败: ' + error.message,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            });
+        }
+        
+
+        
+        function convertLora() {
+            const config = getConfig();
+            const inputFile = config.convert_input_file;
+            const outputDir = config.convert_output_dir;
+            
+            if (!inputFile || !outputDir) {
+                addLogEntry({
+                    level: 'error',
+                    message: '请先设置待转换LoRA文件地址和转换后LoRA文件地址',
+                    timestamp: new Date().toLocaleTimeString()
+                });
+                return;
+            }
+            
+            addLogEntry({
+                level: 'info',
+                message: '开始转换 LoRA 为 ComfyUI 兼容格式...',
+                timestamp: new Date().toLocaleTimeString()
+            });
+            
+            fetch('/api/convert_lora', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    input_file: inputFile,
+                    output_dir: outputDir
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    addLogEntry({
+                        level: 'success',
+                        message: `LoRA 转换成功: ${data.message}`,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                } else {
+                    addLogEntry({
+                        level: 'error',
+                        message: 'LoRA 转换失败: ' + data.message,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                }
+            })
+            .catch(error => {
+                addLogEntry({
+                    level: 'error',
+                    message: 'LoRA 转换请求失败: ' + error.message,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            });
+        }
+        
+        function startTensorBoard() {
+            const config = getConfig();
+            fetch('/api/start_tensorboard', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(config)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    addLogEntry({
+                        level: 'success',
+                        message: `TensorBoard已启动: ${data.url}`,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                    if (data.url) {
+                        window.open(data.url, '_blank');
+                    }
+                } else {
+                    addLogEntry({
+                        level: 'error',
+                        message: 'TensorBoard启动失败: ' + data.message,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                }
+            })
+            .catch(error => {
+                addLogEntry({
+                    level: 'error',
+                    message: 'TensorBoard启动失败: ' + error.message,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            });
+        }
+        
+        let logPollingInterval = null;
+        
+        function clearLogs() {
+            fetch('/api/clear_logs', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const logOutput = document.getElementById('log-output');
+                    logOutput.innerHTML = '';
+                    addLogEntry({
+                        level: 'info',
+                        message: '日志已清空',
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                } else {
+                    addLogEntry({
+                        level: 'error',
+                        message: '清空日志失败: ' + data.message,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                }
+            })
+            .catch(error => {
+                addLogEntry({
+                    level: 'error',
+                    message: '清空日志失败: ' + error.message,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            });
+        }
+        
+        function scrollToBottom() {
+            const logOutput = document.getElementById('log-output');
+            logOutput.scrollTop = logOutput.scrollHeight;
+        }
+        
+        function startLogPolling() {
+            // WebSocket模式下不需要轮询，保留函数以兼容现有代码
+            console.log('使用WebSocket实时日志，无需启动轮询');
+        }
+        
+        function stopLogPolling() {
+            // WebSocket模式下不需要轮询，保留函数以兼容现有代码
+            console.log('使用WebSocket实时日志，无需停止轮询');
+        }
+        
+        function pollStatus() {
+            if (!isRunning) return;
+            
+            fetch('/api/status')
+            .then(response => response.json())
+            .then(data => {
+                // 检查缓存任务状态
+                if (data.cache_running) {
+                    updateStatus('running', `${data.cache_type}缓存进行中...`);
+                    setTimeout(pollStatus, 2000);
+                    return;
+                }
+                
+                // 检查训练任务状态
+                if (data.training_running) {
+                    updateStatus('running', data.status || '训练进行中...');
+                    if (data.progress !== undefined) {
+                        updateProgress(data.progress);
+                    }
+                    setTimeout(pollStatus, 2000);
+                } else {
+                    // 任务完成，恢复按钮状态
+                    isRunning = false;
+                    currentRunningTask = null;
+                    
+                    // 根据之前的任务类型恢复按钮状态
+                    setTrainingButtonsEnabled(true);
+                    setCacheButtonsEnabled(true);
+                    setButtonsEnabled(true);
+                    
+                    updateStatus('ready', '就绪');
+                    updateProgress(0);
+                    stopLogPolling(); // 停止日志轮询
+                    
+                    if (data.training_completed) {
+                        addLogEntry({
+                            level: 'success',
+                            message: '训练完成',
+                            timestamp: new Date().toLocaleTimeString()
+                        });
+                    } else if (data.training_error) {
+                        addLogEntry({
+                            level: 'error',
+                            message: '训练失败',
+                            timestamp: new Date().toLocaleTimeString()
+                        });
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('状态轮询失败:', error);
+                setTimeout(pollStatus, 5000);
+            });
+        }
+        
+        function fetchLogs() {
+            fetch('/api/logs')
+            .then(response => response.json())
+            .then(data => {
+                if (data.logs && data.logs.length > lastLogCount) {
+                    const newLogs = data.logs.slice(lastLogCount);
+                    newLogs.forEach(log => {
+                        addLogEntry(log);
+                    });
+                    lastLogCount = data.logs.length;
+                }
+            })
+            .catch(error => {
+                console.error('获取日志失败:', error);
+            });
+        }
+        
+        function saveConfig() {
+            const config = getConfig();
+            
+            fetch('/api/save_config', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(config)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    addLogEntry({
+                        level: 'success',
+                        message: '配置已保存',
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                } else {
+                    addLogEntry({
+                        level: 'error',
+                        message: '配置保存失败: ' + data.message,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                }
+            })
+            .catch(error => {
+                addLogEntry({
+                    level: 'error',
+                    message: '配置保存失败: ' + error.message,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            });
+        }
+        
+        function loadConfig() {
+            fetch('/api/load_config')
+            .then(response => response.json())
+            .then(data => {
+                // 无论成功还是失败，都尝试使用返回的配置（失败时后端会返回默认配置）
+                const config = data.config;
+                if (config) {
+                    // 设置任务类型
+                    if (config.task) {
+                        selectTaskType(config.task);
+                    }
+                    
+                    // 填充表单
+                    Object.keys(config).forEach(key => {
+                        const element = document.getElementById(key);
+                        if (element) {
+                            if (element.type === 'checkbox') {
+                                element.checked = config[key];
+                            } else {
+                                element.value = config[key];
+                            }
+                        }
+                    });
+                    
+                    // 特殊处理内存优化策略恢复
+                    if (config.memory_optimization_strategy) {
+                        document.getElementById('memory_optimization_strategy').value = config.memory_optimization_strategy;
+                    }
+                    
+                    // 触发内存优化策略切换处理
+                    handleMemoryOptimizationChange();
+                    
+                    // 触发继续训练选项显示处理
+                    toggleResumeOptions();
+                    
+                    if (data.success) {
+                        addLogEntry({
+                            level: 'success',
+                            message: '配置已加载',
+                            timestamp: new Date().toLocaleTimeString()
+                        });
+                    } else {
+                        addLogEntry({
+                            level: 'warning',
+                            message: '使用默认配置: ' + (data.message || '配置文件不存在'),
+                            timestamp: new Date().toLocaleTimeString()
+                        });
+                    }
+                } else {
+                    addLogEntry({
+                        level: 'error',
+                        message: '配置加载失败: ' + (data.message || '未知错误'),
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                }
+            })
+            .catch(error => {
+                addLogEntry({
+                    level: 'error',
+                    message: '配置加载失败: ' + error.message,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+                // 网络错误时，使用前端默认配置
+                loadDefaultConfig();
+            });
+        }
+        
+        function resetConfig() {
+            if (confirm('确定要重置配置吗？这将恢复所有参数为默认值并自动保存。')) {
+                fetch('/api/reset_config', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // 使用返回的配置更新界面
+                        const config = data.config;
+                        
+                        // 更新所有表单字段
+                        Object.keys(config).forEach(key => {
+                            const element = document.getElementById(key);
+                            if (element) {
+                                if (element.type === 'checkbox') {
+                                    element.checked = config[key];
+                                } else if (element.type === 'number') {
+                                    element.value = config[key];
+                                } else {
+                                    element.value = config[key];
+                                }
+                            } else {
+                                console.warn(`Element with id '${key}' not found when resetting config`);
+                            }
+                        });
+                        
+                        // 特殊处理任务类型
+                        if (config.task) {
+                            selectTaskType(config.task);
+                        }
+                        
+                        addLogEntry({
+                            level: 'info',
+                            message: '✅ 配置已重置为默认值并保存',
+                            timestamp: new Date().toLocaleTimeString()
+                        });
+                    } else {
+                        addLogEntry({
+                            level: 'error',
+                            message: '❌ 重置配置失败: ' + data.message,
+                            timestamp: new Date().toLocaleTimeString()
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Reset config error:', error);
+                    addLogEntry({
+                        level: 'error',
+                        message: '❌ 重置配置失败: ' + error.message,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                });
+            }
+        }
+        
+        function estimateTrainingTime() {
+            // 获取训练参数
+            const datasetConfig = document.getElementById('dataset_config').value;
+            const trainBatchSize = parseInt(document.getElementById('train_batch_size').value) || 1;
+            const numRepeats = parseInt(document.getElementById('num_repeats').value) || 1;
+            const maxTrainEpochs = parseInt(document.getElementById('max_train_epochs').value) || 1;
+            const saveEveryNEpochs = parseInt(document.getElementById('save_every_n_epochs').value) || 1;
+            const outputName = document.getElementById('output_name').value || 'wan22-lora';
+            const avgStepTime = parseFloat(document.getElementById('avg_step_time').value) || 2.92;
+            
+            if (!datasetConfig) {
+                addLogEntry({
+                    level: 'warning',
+                    message: '请先选择数据集配置文件',
+                    timestamp: new Date().toLocaleTimeString()
+                });
+                return;
+            }
+            
+            // 显示加载状态
+            const resultsDiv = document.getElementById('estimation_results');
+            resultsDiv.style.display = 'block';
+            document.getElementById('final_time_result').textContent = '计算中...';
+            
+            // 清除之前的文件列表（如果存在）
+            const existingFileList = resultsDiv.querySelector('div[style*="border-left: 4px solid #9b59b6"]');
+            if (existingFileList) {
+                existingFileList.remove();
+            }
+            
+            // 调用后端API估算训练时间
+            fetch('/api/estimate_training_time', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    dataset_config: datasetConfig,
+                    train_batch_size: trainBatchSize,
+                    num_repeats: numRepeats,
+                    max_train_epochs: maxTrainEpochs,
+                    save_every_n_epochs: saveEveryNEpochs,
+                    output_name: outputName,
+                    avg_step_time: avgStepTime
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 时间格式转换函数
+                    function formatTime(seconds) {
+                        const hours = Math.floor(seconds / 3600);
+                        const minutes = Math.floor((seconds % 3600) / 60);
+                        const remainingSeconds = Math.floor(seconds % 60);
+                        
+                        if (hours > 0) {
+                            return `${hours} 小时 ${minutes} 分钟 ${remainingSeconds} 秒`;
+                        } else if (minutes > 0) {
+                            return `${minutes} 分钟 ${remainingSeconds} 秒`;
+                        } else {
+                            return `${remainingSeconds} 秒`;
+                        }
+                    }
+                    
+                    // 计算总秒数
+                    const totalSeconds = data.total_steps * avgStepTime;
+                    const formattedTime = formatTime(totalSeconds);
+                    
+                    // 更新最终结果
+                    document.getElementById('final_time_result').textContent = formattedTime;
+                    
+                    // 更新参数显示
+                    document.getElementById('dataset_files_display').textContent = `${data.dataset_files} 个文件`;
+                    document.getElementById('batch_size_display').textContent = trainBatchSize;
+                    document.getElementById('num_repeats_display').textContent = numRepeats;
+                    document.getElementById('max_epochs_display').textContent = maxTrainEpochs;
+                    document.getElementById('step_time_display').textContent = `${avgStepTime} 秒`;
+                    
+                    // 更新计算公式显示
+                    const stepsPerEpoch = Math.ceil((data.dataset_files * numRepeats) / trainBatchSize);
+                    document.getElementById('total_steps_calculation').textContent = 
+                        `总步数 = (${data.dataset_files} × ${numRepeats} ÷ ${trainBatchSize}) × ${maxTrainEpochs} = ${data.total_steps} 步`;
+                    
+                    document.getElementById('time_calculation').textContent = 
+                        `预估时间 = ${data.total_steps} × ${avgStepTime} = ${totalSeconds.toFixed(1)} 秒 (${formattedTime})`;
+                    
+                    // 显示预计生成文件列表
+                    if (data.predicted_files && data.predicted_files.length > 0) {
+                        let fileListHtml = '<div style="margin-top: 20px; padding: 15px; background: rgba(255,255,255,0.9); border-radius: 8px; border-left: 4px solid #9b59b6;"><h4 style="margin: 0 0 15px 0; color: #8e44ad; border-bottom: 2px solid #9b59b6; padding-bottom: 5px;">📁 预计生成文件列表</h4>';
+                        
+                        data.predicted_files.forEach((file, index) => {
+                            fileListHtml += `
+                                <div style="margin-bottom: 8px; padding: 8px 12px; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 6px; border-left: 3px solid #9b59b6; font-family: 'Courier New', monospace;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <span style="font-weight: bold; color: #6f42c1;">${file.filename}</span>
+                                        <span style="color: #6c757d; font-size: 12px;">第${file.save_count}次保存</span>
+                                    </div>
+                                    <div style="margin-top: 4px; color: #495057; font-size: 13px;">
+                                        <span style="background: #e7f3ff; padding: 2px 6px; border-radius: 3px; margin-right: 8px;">轮次: ${file.epoch}</span>
+                                        <span style="background: #fff2e7; padding: 2px 6px; border-radius: 3px;">步数: ${file.step_range}</span>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        
+                        fileListHtml += '</div>';
+                        
+                        // 将文件列表添加到结果区域
+                        const resultsDiv = document.getElementById('estimation_results');
+                        resultsDiv.insertAdjacentHTML('beforeend', fileListHtml);
+                    }
+                    
+                    addLogEntry({
+                        level: 'info',
+                        message: `✅ 训练时间估算完成: ${formattedTime} (总步数: ${data.total_steps}, 数据集文件数: ${data.dataset_files}, 预计生成${data.predicted_files ? data.predicted_files.length : 0}个文件)`,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                } else {
+                    // 隐藏结果区域并显示错误
+                    resultsDiv.style.display = 'none';
+                    addLogEntry({
+                        level: 'error',
+                        message: '❌ 训练时间估算失败: ' + data.message,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                }
+            })
+            .catch(error => {
+                addLogEntry({
+                    level: 'error',
+                    message: '训练时间估算失败: ' + error.message,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            });
+        }
+        
+        function setRecommendedNumRepeats() {
+            // 获取必要的参数
+            const datasetConfig = document.getElementById('dataset_config').value;
+            const videoTrainingCheckbox = document.getElementById('video_training_checkbox');
+            const isVideoTraining = videoTrainingCheckbox ? videoTrainingCheckbox.checked : false;
+            const videoDurationInput = document.getElementById('video_duration');
+            const videoDuration = videoDurationInput ? (parseFloat(videoDurationInput.value) || 5) : 5;
+            const batchSizeInput = document.getElementById('train_batch_size');
+            const batchSize = batchSizeInput ? (parseInt(batchSizeInput.value) || 1) : 1;
+            
+            console.log('setRecommendedNumRepeats - datasetConfig:', datasetConfig);
+            console.log('setRecommendedNumRepeats - isVideoTraining:', isVideoTraining);
+            console.log('setRecommendedNumRepeats - videoDuration:', videoDuration);
+            
+            if (!datasetConfig) {
+                addLogEntry({
+                    level: 'warning',
+                    message: '请先选择数据集配置文件',
+                    timestamp: new Date().toLocaleTimeString()
+                });
+                return;
+            }
+            
+            // 调用后端API获取推荐的num_repeats值
+            fetch('/api/calculate_recommended_num_repeats', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    dataset_config: datasetConfig,
+                    task_type: currentTaskType,
+                    is_video_training: isVideoTraining,
+                    video_duration: videoDuration,
+                    batch_size: batchSize
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('API响应数据:', data);
+                if (data.success) {
+                    // 设置推荐的num_repeats值到输入框
+                    const numRepeatsInput = document.getElementById('num_repeats');
+                    if (numRepeatsInput && data.recommended_repeats !== undefined) {
+                        numRepeatsInput.value = data.recommended_repeats;
+                    }
+                    
+                    let message;
+                    const recommendedValue = data.recommended_repeats || 'N/A';
+                    const datasetFiles = data.dataset_files || 'N/A';
+                    const actualVideoDuration = data.video_duration || videoDuration;
+                    
+                    if (isVideoTraining) {
+                        message = `✅ 推荐数据重复次数: ${recommendedValue} (视频训练模式, 视频时长: ${actualVideoDuration}秒, 数据集: ${datasetFiles}个文件)`;
+                    } else {
+                        message = `✅ 推荐数据重复次数: ${recommendedValue} (图片训练模式, 数据集: ${datasetFiles}个文件)`;
+                    }
+                    
+                    addLogEntry({
+                        level: 'success',
+                        message: message,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                } else {
+                    addLogEntry({
+                        level: 'error',
+                        message: '❌ 推荐数据重复次数计算失败: ' + (data.message || '未知错误'),
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                }
+            })
+            .catch(error => {
+                addLogEntry({
+                    level: 'error',
+                    message: '推荐数据重复次数计算失败: ' + error.message,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            });
+        }
+        
+        function calculateRecommendedLearningRate() {
+            // 获取必要的参数
+            const datasetConfig = document.getElementById('dataset_config').value;
+            const trainBatchSize = parseInt(document.getElementById('train_batch_size').value) || 1;
+            const optimizerType = document.getElementById('optimizer_type').value || 'adamw8bit';
+            
+            if (!datasetConfig) {
+                addLogEntry({
+                    level: 'warning',
+                    message: '请先选择数据集配置文件',
+                    timestamp: new Date().toLocaleTimeString()
+                });
+                return;
+            }
+            
+            // 检查是否为视频训练
+            const isVideoTraining = document.getElementById('video_training_checkbox') ? 
+                document.getElementById('video_training_checkbox').checked : false;
+            
+            // 获取视频时长
+            const videoDuration = parseFloat(document.getElementById('video_duration').value) || 5;
+            
+            // 显示计算中状态
+            const resultSpan = document.getElementById('lr_calculation_result');
+            if (resultSpan) {
+                resultSpan.textContent = '计算中...';
+                resultSpan.style.color = '#ffc107';
+            }
+            
+            // 调用后端API计算推荐学习率
+            fetch('/api/calculate_recommended_learning_rate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    dataset_config: datasetConfig,
+                    train_batch_size: trainBatchSize,
+                    optimizer_type: optimizerType,
+                    task_type: currentTaskType,
+                    is_video_training: isVideoTraining,
+                    video_duration: videoDuration
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 设置推荐学习率到输入框
+                    document.getElementById('learning_rate').value = data.recommended_lr;
+                    
+                    // 显示计算过程
+                    if (resultSpan) {
+                        // 检查是否为视频训练模式
+                        const isVideoTraining = document.getElementById('video_training_checkbox') ? 
+                            document.getElementById('video_training_checkbox').checked : false;
+                        
+                        let datasetInfo;
+                        if (isVideoTraining && data.video_duration) {
+                            datasetInfo = `🎬 视频时长: ${data.video_duration}秒`;
+                        } else {
+                            datasetInfo = `📁 数据集: ${data.dataset_files}个文件`;
+                        }
+                        
+                        resultSpan.innerHTML = `
+                            📊 ${data.calculation}<br>
+                            ${datasetInfo} | 🔧 优化器: ${data.optimizer_type}<br>
+                            💡 ${data.optimizer_description}
+                        `;
+                        resultSpan.style.color = '#28a745';
+                    }
+                    
+                    addLogEntry({
+                        level: 'success',
+                        message: `✅ 推荐学习率计算完成: ${data.recommended_lr} (优化器: ${data.optimizer_type}, 数据集: ${data.dataset_files}个文件)`,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                } else {
+                    if (resultSpan) {
+                        resultSpan.textContent = '计算失败: ' + data.message;
+                        resultSpan.style.color = '#dc3545';
+                    }
+                    
+                    addLogEntry({
+                        level: 'error',
+                        message: '❌ 推荐学习率计算失败: ' + data.message,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                }
+            })
+            .catch(error => {
+                if (resultSpan) {
+                    resultSpan.textContent = '计算失败: ' + error.message;
+                    resultSpan.style.color = '#dc3545';
+                }
+                
+                addLogEntry({
+                    level: 'error',
+                    message: '❌ 推荐学习率计算失败: ' + error.message,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            });
+        }
+        
+        function calculateGPTRecommendedLearningRate() {
+            // 获取必要的参数
+            const datasetConfig = document.getElementById('dataset_config').value;
+            
+            if (!datasetConfig) {
+                addLogEntry({
+                    level: 'warning',
+                    message: '请先选择数据集配置文件',
+                    timestamp: new Date().toLocaleTimeString()
+                });
+                return;
+            }
+            
+            // 检查是否为视频训练
+            const isVideoTraining = document.getElementById('video_training_checkbox') ? 
+                document.getElementById('video_training_checkbox').checked : true;
+            
+            // 获取视频时长（如果是视频训练）
+            const videoDuration = isVideoTraining && document.getElementById('video_duration') ? 
+                parseInt(document.getElementById('video_duration').value) || 5 : 5;
+            
+            // 获取优化器类型
+            const optimizer = document.getElementById('optimizer_type') ? 
+                document.getElementById('optimizer_type').value : 'AdamW';
+            
+            // 获取LoRA rank
+            const loraRank = document.getElementById('network_dim') ? 
+                parseInt(document.getElementById('network_dim').value) || 8 : 8;
+            
+            // 显示计算中状态
+            const chatgptResultSpan = document.getElementById('chatgpt_lr_calculation_result');
+            if (chatgptResultSpan) {
+                chatgptResultSpan.textContent = '计算中...';
+                chatgptResultSpan.style.color = '#ffc107';
+            }
+            
+            // 调用后端API计算GPT推荐学习率
+            fetch('/api/calculate_gpt_recommended_learning_rate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    dataset_config: datasetConfig,
+                    task_type: currentTaskType,
+                    is_video_training: isVideoTraining,
+                    video_duration: videoDuration,
+                    optimizer: optimizer,
+                    lora_rank: loraRank
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 设置推荐学习率和训练轮数到输入框
+                    document.getElementById('learning_rate').value = data.recommended_lr;
+                    document.getElementById('max_train_epochs').value = data.recommended_epochs;
+                    
+                    // 显示智能推荐结果
+                    addLogEntry({
+                        level: 'success',
+                        message: `🤖 ChatGPT智能推荐完成! 学习率: ${data.recommended_lr}, 训练轮数: ${data.recommended_epochs}`,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                    
+                    // 显示推荐详情
+                    addLogEntry({
+                        level: 'info',
+                        message: `📊 ${data.description}`,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                    
+                    // 显示计算过程在ChatGPT推荐提示框中
+                    if (chatgptResultSpan) {
+                        // 检查是否为视频训练模式
+                        const isVideoTraining = document.getElementById('video_training_checkbox') ? 
+                            document.getElementById('video_training_checkbox').checked : false;
+                        
+                        let datasetInfo;
+                        if (isVideoTraining && data.video_duration) {
+                            datasetInfo = `🎬 视频时长: ${data.video_duration}秒`;
+                        } else {
+                            datasetInfo = `📁 数据集: ${data.txt_count || data.dataset_files || 'N/A'}个文件`;
+                        }
+                        
+                        chatgptResultSpan.innerHTML = `
+                            📊 ${data.description}<br>
+                            ${datasetInfo} | 🔧 优化器: ${data.optimizer || optimizer}<br>
+                            🤖 ChatGPT智能算法: 基于数据规模动态调整学习率
+                        `;
+                        chatgptResultSpan.style.color = '#28a745';
+                    }
+                    
+                    // 显示计算公式
+                    if (data.recommendation_details && data.recommendation_details.formula) {
+                        addLogEntry({
+                            level: 'info',
+                            message: `🧮 计算公式: ${data.recommendation_details.formula}`,
+                            timestamp: new Date().toLocaleTimeString()
+                        });
+                    }
+                    
+                    // 显示安全边界和warmup建议
+                    if (data.recommendation_details) {
+                        if (data.recommendation_details.safety_bounds) {
+                            addLogEntry({
+                                level: 'info',
+                                message: `🛡️ ${data.recommendation_details.safety_bounds}`,
+                                timestamp: new Date().toLocaleTimeString()
+                            });
+                        }
+                        if (data.recommendation_details.warmup_suggestion) {
+                            addLogEntry({
+                                level: 'info',
+                                message: `🔥 ${data.recommendation_details.warmup_suggestion}`,
+                                timestamp: new Date().toLocaleTimeString()
+                            });
+                        }
+                    }
+                    
+                    // 显示训练轮数推荐理由
+                    addLogEntry({
+                        level: 'info',
+                        message: `🔄 ${data.epoch_reason}`,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                } else {
+                    if (chatgptResultSpan) {
+                        chatgptResultSpan.textContent = '计算失败: ' + data.message;
+                        chatgptResultSpan.style.color = '#dc3545';
+                    }
+                    
+                    addLogEntry({
+                        level: 'error',
+                        message: '❌ ChatGPT推荐学习率计算失败: ' + data.message,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                }
+            })
+            .catch(error => {
+                if (chatgptResultSpan) {
+                    chatgptResultSpan.textContent = '计算失败: ' + error.message;
+                    chatgptResultSpan.style.color = '#dc3545';
+                }
+                
+                addLogEntry({
+                    level: 'error',
+                    message: '❌ GPT推荐学习率计算失败: ' + error.message,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            });
+        }
+        
+        function calculateRecommendedLoRADim() {
+            const datasetConfig = document.getElementById('dataset_config').value;
+            
+            if (!datasetConfig) {
+                addLogEntry({
+                    level: 'warning',
+                    message: '请先选择数据集配置文件',
+                    timestamp: new Date().toLocaleTimeString()
+                });
+                return;
+            }
+            
+            // 检查是否为视频训练
+            const isVideoTraining = document.getElementById('video_training_checkbox') ? 
+                document.getElementById('video_training_checkbox').checked : true;
+            
+            fetch('/api/calculate_recommended_lora_params', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    dataset_config: datasetConfig,
+                    param_type: 'network_dim',
+                    task_type: currentTaskType,
+                    is_video_training: isVideoTraining
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('network_dim').value = data.recommended_value;
+                    
+                    addLogEntry({
+                        level: 'success',
+                        message: `✅ 推荐LoRA维度: ${data.recommended_value} (数据集: ${data.dataset_files}个文件) - ${data.reason}`,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                } else {
+                    addLogEntry({
+                        level: 'error',
+                        message: '❌ LoRA维度推荐失败: ' + data.message,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                }
+            })
+            .catch(error => {
+                addLogEntry({
+                    level: 'error',
+                    message: '❌ LoRA维度推荐失败: ' + error.message,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            });
+        }
+        
+        function calculateRecommendedLoRAAlpha() {
+            const datasetConfig = document.getElementById('dataset_config').value;
+            const currentDim = parseInt(document.getElementById('network_dim').value) || 8;
+            
+            if (!datasetConfig) {
+                addLogEntry({
+                    level: 'warning',
+                    message: '请先选择数据集配置文件',
+                    timestamp: new Date().toLocaleTimeString()
+                });
+                return;
+            }
+            
+            // 检查是否为视频训练
+            const isVideoTraining = document.getElementById('video_training_checkbox') ? 
+                document.getElementById('video_training_checkbox').checked : true;
+            
+            fetch('/api/calculate_recommended_lora_params', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    dataset_config: datasetConfig,
+                    param_type: 'network_alpha',
+                    current_dim: currentDim,
+                    task_type: currentTaskType,
+                    is_video_training: isVideoTraining
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('network_alpha').value = data.recommended_value;
+                    
+                    addLogEntry({
+                        level: 'success',
+                        message: `✅ 推荐LoRA Alpha: ${data.recommended_value} (当前维度: ${data.current_dim}) - ${data.reason}`,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                } else {
+                    addLogEntry({
+                        level: 'error',
+                        message: '❌ LoRA Alpha推荐失败: ' + data.message,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                }
+            })
+            .catch(error => {
+                addLogEntry({
+                    level: 'error',
+                    message: '❌ LoRA Alpha推荐失败: ' + error.message,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            });
+        }
+        
+        function calculateRecommendedEpochs() {
+            const datasetConfig = document.getElementById('dataset_config').value;
+            const trainBatchSize = parseInt(document.getElementById('train_batch_size').value) || 1;
+            const isVideoTraining = document.getElementById('video_training_checkbox') ? 
+                document.getElementById('video_training_checkbox').checked : false;
+            const videoDuration = parseFloat(document.getElementById('video_duration').value) || 5;
+            
+            if (!datasetConfig) {
+                addLogEntry({
+                    level: 'warning',
+                    message: '请先选择数据集配置文件',
+                    timestamp: new Date().toLocaleTimeString()
+                });
+                return;
+            }
+            
+            fetch('/api/calculate_recommended_epochs', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    dataset_config: datasetConfig,
+                    train_batch_size: trainBatchSize,
+                    task_type: currentTaskType,
+                    is_video_training: isVideoTraining,
+                    video_duration: videoDuration
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('max_train_epochs').value = data.recommended_value;
+                    
+                    const timeHours = Math.floor(data.estimated_time_minutes / 60);
+                    const timeMinutes = data.estimated_time_minutes % 60;
+                    const timeStr = timeHours > 0 ? `${timeHours}小时${timeMinutes}分钟` : `${timeMinutes}分钟`;
+                    
+                    addLogEntry({
+                        level: 'success',
+                        message: `✅ 推荐训练轮数: ${data.recommended_value} (数据集: ${data.dataset_files}张, 预估时间: ${timeStr}) - ${data.reason}`,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                } else {
+                    addLogEntry({
+                        level: 'error',
+                        message: '❌ 训练轮数推荐失败: ' + data.message,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                }
+            })
+            .catch(error => {
+                addLogEntry({
+                    level: 'error',
+                    message: '❌ 训练轮数推荐失败: ' + error.message,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            });
+        }
+        
+        function calculateChatGPTRecommendedParams() {
+            const datasetConfig = document.getElementById('dataset_config').value;
+            
+            if (!datasetConfig) {
+                addLogEntry({
+                    level: 'warning',
+                    message: '请先选择数据集配置文件',
+                    timestamp: new Date().toLocaleTimeString()
+                });
+                return;
+            }
+            
+            // 检查是否为视频训练
+            const isVideoTraining = document.getElementById('video_training_checkbox') ? 
+                document.getElementById('video_training_checkbox').checked : true;
+            
+            // 获取视频时长（如果是视频训练）
+            const videoDuration = isVideoTraining && document.getElementById('video_duration') ? 
+                parseInt(document.getElementById('video_duration').value) || 5 : 5;
+            
+            // 获取批次大小
+            const batchSize = document.getElementById('train_batch_size') ? 
+                parseInt(document.getElementById('train_batch_size').value) || 1 : 1;
+            
+            // 显示计算中状态
+            const resultDiv = document.getElementById('chatgpt_params_result');
+            if (resultDiv) {
+                resultDiv.innerHTML = '🤖 ChatGPT正在计算推荐参数...';
+                resultDiv.style.display = 'block';
+                resultDiv.style.color = '#ffc107';
+            }
+            
+            fetch('/api/calculate_chatgpt_recommended_params', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    dataset_config: datasetConfig,
+                    task_type: currentTaskType,
+                    is_video_training: isVideoTraining,
+                    video_duration: videoDuration
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 自动填入所有推荐的参数值
+                    if (data.num_repeats && document.getElementById('num_repeats')) {
+                        document.getElementById('num_repeats').value = data.num_repeats;
+                    }
+                    if (data.learning_rate && document.getElementById('learning_rate')) {
+                        document.getElementById('learning_rate').value = data.learning_rate;
+                    }
+                    if (data.network_dim && document.getElementById('network_dim')) {
+                        document.getElementById('network_dim').value = data.network_dim;
+                    }
+                    if (data.network_alpha && document.getElementById('network_alpha')) {
+                        document.getElementById('network_alpha').value = data.network_alpha;
+                    }
+                    if (data.max_train_epochs && document.getElementById('max_train_epochs')) {
+                        document.getElementById('max_train_epochs').value = data.max_train_epochs;
+                    }
+                    
+                    // 显示推荐结果和计算公式
+                    if (resultDiv) {
+                        let datasetInfo;
+                        if (isVideoTraining && data.video_duration) {
+                            datasetInfo = `🎬 视频时长: ${data.video_duration}秒`;
+                        } else {
+                            datasetInfo = `📁 数据集: ${data.dataset_files || 'N/A'}个文件`;
+                        }
+                        
+                        resultDiv.innerHTML = `
+                            <div style="font-weight: bold; margin-bottom: 8px;">🤖 ChatGPT智能推荐完成</div>
+                            <div style="margin-bottom: 6px;">${datasetInfo} | 📋 任务: ${data.task_type || currentTaskType}</div>
+                            <div style="margin-bottom: 8px; padding: 6px; background: #e3f2fd; border-radius: 4px;">
+                                📊 <strong>推荐参数:</strong><br>
+                                • 数据重复次数: ${data.num_repeats || 'N/A'}<br>
+                                • 学习率: ${data.learning_rate || 'N/A'}<br>
+                                • LoRA维度: ${data.network_dim || 'N/A'}<br>
+                                • 网络Alpha: ${data.network_alpha || 'N/A'}<br>
+                                • 最大训练轮数: ${data.max_train_epochs || 'N/A'}
+                            </div>
+                            <div style="font-size: 11px; color: #666;">
+                                🧮 <strong>ChatGPT计算公式:</strong><br>
+                                ${data.formula || '基于数据规模和任务类型的智能算法'}
+                            </div>
+                        `;
+                        resultDiv.style.color = '#28a745';
+                    }
+                    
+                    addLogEntry({
+                        level: 'success',
+                        message: `🤖 ChatGPT参数推荐完成! 已自动填入所有推荐参数`,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                    
+                    // 显示每个参数的推荐理由
+                    if (data.reasons) {
+                        Object.keys(data.reasons).forEach(param => {
+                            addLogEntry({
+                                level: 'info',
+                                message: `📝 ${param}: ${data.reasons[param]}`,
+                                timestamp: new Date().toLocaleTimeString()
+                            });
+                        });
+                    }
+                } else {
+                    if (resultDiv) {
+                        resultDiv.innerHTML = '❌ ChatGPT参数推荐失败: ' + data.message;
+                        resultDiv.style.color = '#dc3545';
+                    }
+                    addLogEntry({
+                        level: 'error',
+                        message: '❌ ChatGPT参数推荐失败: ' + data.message,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                }
+            })
+            .catch(error => {
+                if (resultDiv) {
+                    resultDiv.innerHTML = '❌ 网络错误: ' + error.message;
+                    resultDiv.style.color = '#dc3545';
+                }
+                addLogEntry({
+                    level: 'error',
+                    message: '❌ ChatGPT参数推荐失败: ' + error.message,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            });
+        }
+        
+        function setRecommendedNetworkDim() {
+            const datasetConfig = document.getElementById('dataset_config').value;
+            
+            if (!datasetConfig) {
+                addLogEntry({
+                    level: 'warning',
+                    message: '请先选择数据集配置文件',
+                    timestamp: new Date().toLocaleTimeString()
+                });
+                return;
+            }
+            
+            const isVideoTraining = document.getElementById('video_training_checkbox') ? 
+                document.getElementById('video_training_checkbox').checked : false;
+            const videoDuration = parseFloat(document.getElementById('video_duration').value) || 5;
+            
+            fetch('/api/calculate_recommended_network_dim', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    dataset_config: datasetConfig,
+                    task_type: currentTaskType,
+                    is_video_training: isVideoTraining,
+                    video_duration: videoDuration
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('network_dim').value = data.recommended_dim;
+                    
+                    let message;
+                    if (isVideoTraining) {
+                        message = `✅ 推荐LoRA维度: ${data.recommended_dim} (视频训练模式, 视频时长: ${videoDuration}秒, 数据集: ${data.dataset_files || 'N/A'}个文件)`;
+                    } else {
+                        message = `✅ 推荐LoRA维度: ${data.recommended_dim} (图片训练模式, 数据集: ${data.dataset_files}个文件)`;
+                    }
+                    
+                    addLogEntry({
+                        level: 'success',
+                        message: message,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                } else {
+                    addLogEntry({
+                        level: 'error',
+                        message: '❌ LoRA维度推荐失败: ' + data.message,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                }
+            })
+            .catch(error => {
+                addLogEntry({
+                    level: 'error',
+                    message: 'LoRA维度推荐失败: ' + error.message,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            });
+        }
+        
+        function setRecommendedNetworkAlpha() {
+            const datasetConfig = document.getElementById('dataset_config').value;
+            const networkDim = parseInt(document.getElementById('network_dim').value) || 16;
+            
+            if (!datasetConfig) {
+                addLogEntry({
+                    level: 'warning',
+                    message: '请先选择数据集配置文件',
+                    timestamp: new Date().toLocaleTimeString()
+                });
+                return;
+            }
+            
+            const isVideoTraining = document.getElementById('video_training_checkbox') ? 
+                document.getElementById('video_training_checkbox').checked : false;
+            const videoDuration = parseFloat(document.getElementById('video_duration').value) || 5;
+            
+            fetch('/api/calculate_recommended_network_alpha', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    dataset_config: datasetConfig,
+                    task_type: currentTaskType,
+                    is_video_training: isVideoTraining,
+                    video_duration: videoDuration,
+                    network_dim: networkDim
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('network_alpha').value = data.recommended_alpha;
+                    
+                    let message;
+                    if (isVideoTraining) {
+                        message = `✅ 推荐LoRA Alpha: ${data.recommended_alpha} (视频训练模式, 维度: ${networkDim}, 视频时长: ${videoDuration}秒)`;
+                    } else {
+                        message = `✅ 推荐LoRA Alpha: ${data.recommended_alpha} (图片训练模式, 维度: ${networkDim}, 数据集: ${data.dataset_files}个文件)`;
+                    }
+                    
+                    addLogEntry({
+                        level: 'success',
+                        message: message,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                } else {
+                    addLogEntry({
+                        level: 'error',
+                        message: '❌ LoRA Alpha推荐失败: ' + data.message,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                }
+            })
+            .catch(error => {
+                addLogEntry({
+                    level: 'error',
+                    message: 'LoRA Alpha推荐失败: ' + error.message,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            });
+        }
+        
+        function toggleSection(sectionId) {
+            const content = document.getElementById(sectionId);
+            const icon = document.getElementById(sectionId.replace('-params', '-toggle-icon'));
+            
+            if (content.style.display === 'none' || content.style.display === '') {
+                content.style.display = 'block';
+                icon.textContent = '▲';
+            } else {
+                content.style.display = 'none';
+                icon.textContent = '▼';
+            }
+        }
+        
+        // 内存优化策略切换处理
+        function handleMemoryOptimizationChange() {
+            const strategy = document.getElementById('memory_optimization_strategy').value;
+            const blocksConfig = document.getElementById('blocks_to_swap_config');
+            
+            if (strategy === 'blocks_to_swap') {
+                blocksConfig.style.display = 'block';
+            } else {
+                blocksConfig.style.display = 'none';
+            }
+        }
+        
+        // 切换断点续训选项显示
+        function toggleResumeOptions() {
+            const resumeCheckbox = document.getElementById('resume_training');
+            const resumePathGroup = document.getElementById('resume_path_group');
+            
+            if (resumeCheckbox.checked) {
+                resumePathGroup.style.display = 'block';
+            } else {
+                resumePathGroup.style.display = 'none';
+                // 清空路径输入框
+                document.getElementById('resume').value = '';
+            }
+        }
+        
+        // 获取内存优化配置
+        function getMemoryOptimizationConfig() {
+            const strategy = document.getElementById('memory_optimization_strategy').value;
+            
+            if (strategy === 'blocks_to_swap') {
+                const blocksValue = parseInt(document.getElementById('blocks_to_swap').value) || 20;
+                return {
+                    blocks_to_swap: blocksValue,
+                    offload_inactive_dit: false
+                };
+            } else {
+                return {
+                    blocks_to_swap: 0,
+                    offload_inactive_dit: true
+                };
+            }
+        }
+        
+        // 切换状态文件夹路径输入框显示/隐藏
+
+        
+        // 切换视频设置显示/隐藏
+        function toggleVideoSettings() {
+            const checkbox = document.getElementById('video_training_checkbox');
+            const settings = document.getElementById('video_duration_settings');
+            
+            if (checkbox.checked) {
+                settings.style.display = 'block';
+                // 添加展开动画效果
+                settings.style.opacity = '0';
+                settings.style.transform = 'translateY(-10px)';
+                setTimeout(() => {
+                    settings.style.transition = 'all 0.3s ease';
+                    settings.style.opacity = '1';
+                    settings.style.transform = 'translateY(0)';
+                }, 10);
+            } else {
+                settings.style.transition = 'all 0.3s ease';
+                settings.style.opacity = '0';
+                settings.style.transform = 'translateY(-10px)';
+                setTimeout(() => {
+                    settings.style.display = 'none';
+                }, 300);
+            }
+        }
+        
+        // Socket.IO客户端连接
+        let socket = null;
+        
+        function initializeSocket() {
+            socket = io();
+            
+            socket.on('connect', function() {
+                console.log('WebSocket连接已建立');
+                addLogEntry({
+                    level: 'success',
+                    message: 'WebSocket连接已建立，开始接收实时日志',
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            });
+            
+            socket.on('disconnect', function() {
+                console.log('WebSocket连接已断开');
+                addLogEntry({
+                    level: 'warning',
+                    message: 'WebSocket连接已断开',
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            });
+            
+            socket.on('log_message', function(logEntry) {
+                addLogEntry(logEntry);
+            });
+            
+            socket.on('connect_error', function(error) {
+                console.error('WebSocket连接错误:', error);
+                addLogEntry({
+                    level: 'error',
+                    message: 'WebSocket连接错误，回退到轮询模式',
+                    timestamp: new Date().toLocaleTimeString()
+                });
+                // 如果WebSocket连接失败，回退到轮询模式
+                setInterval(fetchLogs, 2000);
+            });
+        }
+        
+        function toggleRecommendationTip() {
+            const tip = document.getElementById('recommendation-tip');
+            const icon = document.getElementById('tip-icon');
+            
+            if (tip.style.display === 'none' || tip.style.display === '') {
+                tip.style.display = 'block';
+                icon.textContent = '📖';
+            } else {
+                tip.style.display = 'none';
+                icon.textContent = '💡';
+            }
+        }
+        
+        function toggleLearningRateRecommendationTip() {
+            const tip = document.getElementById('lr-recommendation-tip');
+            const icon = document.getElementById('lr-tip-icon');
+            
+            if (tip.style.display === 'none' || tip.style.display === '') {
+                tip.style.display = 'block';
+                icon.textContent = '📖';
+            } else {
+                tip.style.display = 'none';
+                icon.textContent = '💡';
+            }
+        }
+        
+        function toggleChatGPTLearningRateRecommendationTip() {
+            const tip = document.getElementById('chatgpt-lr-recommendation-tip');
+            const icon = document.getElementById('chatgpt-lr-tip-icon');
+            
+            if (tip.style.display === 'none' || tip.style.display === '') {
+                tip.style.display = 'block';
+                icon.textContent = '📚';
+            } else {
+                tip.style.display = 'none';
+                icon.textContent = '🤖';
+            }
+        }
+        
+        function toggleChatGPTRecommendationTip() {
+            const tip = document.getElementById('chatgpt-recommendation-tip');
+            const icon = document.getElementById('chatgpt-tip-icon');
+            
+            if (tip.style.display === 'none' || tip.style.display === '') {
+                tip.style.display = 'block';
+                icon.textContent = '📚';
+            } else {
+                tip.style.display = 'none';
+                icon.textContent = '🤖';
+            }
+        }
+        
+        function setChatGPTRecommendedNumRepeats() {
+            // 获取必要的参数
+            const datasetConfig = document.getElementById('dataset_config').value;
+            const videoTrainingCheckbox = document.getElementById('video_training_checkbox');
+            const isVideoTraining = videoTrainingCheckbox ? videoTrainingCheckbox.checked : false;
+            const videoDurationInput = document.getElementById('video_duration');
+            const videoDuration = videoDurationInput ? (parseFloat(videoDurationInput.value) || 5) : 5;
+            const batchSizeInput = document.getElementById('train_batch_size');
+            const batchSize = batchSizeInput ? (parseInt(batchSizeInput.value) || 8) : 8;
+            const epochsInput = document.getElementById('max_train_epochs');
+            const epochs = epochsInput ? (parseInt(epochsInput.value) || 10) : 10;
+            
+            console.log('setChatGPTRecommendedNumRepeats - datasetConfig:', datasetConfig);
+            console.log('setChatGPTRecommendedNumRepeats - isVideoTraining:', isVideoTraining);
+            console.log('setChatGPTRecommendedNumRepeats - videoDuration:', videoDuration);
+            
+            if (!datasetConfig) {
+                addLogEntry({
+                    level: 'warning',
+                    message: '请先选择数据集配置文件',
+                    timestamp: new Date().toLocaleTimeString()
+                });
+                return;
+            }
+            
+            // 调用后端API获取ChatGPT推荐的num_repeats值
+            fetch('/api/calculate_chatgpt_recommended_num_repeats', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    dataset_config: datasetConfig,
+                    task_type: currentTaskType,
+                    is_video_training: isVideoTraining,
+                    video_duration: videoDuration,
+                    batch_size: batchSize,
+                    epochs: epochs
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('ChatGPT API响应数据:', data);
+                if (data.success) {
+                    // 设置推荐的num_repeats值到输入框
+                    const numRepeatsInput = document.getElementById('num_repeats');
+                    if (numRepeatsInput && data.recommended_repeats !== undefined) {
+                        numRepeatsInput.value = data.recommended_repeats;
+                    }
+                    
+                    let message;
+                    const recommendedValue = data.recommended_repeats || 'N/A';
+                    const datasetFiles = data.dataset_files || 'N/A';
+                    const targetSteps = data.target_steps || 'N/A';
+                    const stepsPerEpoch = data.steps_per_epoch || 'N/A';
+                    
+                    if (isVideoTraining) {
+                        message = `🤖 ChatGPT推荐数据重复次数: ${recommendedValue} (${currentTaskType.toUpperCase()}模式, 视频时长: ${videoDuration}秒, 数据集: ${datasetFiles}个文件, 目标步数: ${targetSteps}, 每轮步数: ${stepsPerEpoch})`;
+                    } else {
+                        message = `🤖 ChatGPT推荐数据重复次数: ${recommendedValue} (${currentTaskType.toUpperCase()}模式, 数据集: ${datasetFiles}个文件, 目标步数: ${targetSteps}, 每轮步数: ${stepsPerEpoch})`;
+                    }
+                    
+                    addLogEntry({
+                        level: 'success',
+                        message: message,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                } else {
+                    addLogEntry({
+                        level: 'error',
+                        message: '❌ ChatGPT推荐数据重复次数计算失败: ' + (data.message || '未知错误'),
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                }
+            })
+            .catch(error => {
+                addLogEntry({
+                    level: 'error',
+                    message: 'ChatGPT推荐数据重复次数计算失败: ' + error.message,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            });
+        }
+        
+        // 页面加载完成后的初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 设置默认任务类型为T2V
+            selectTaskType('t2v');
+            
+            // 添加内存优化策略切换事件监听器
+            document.getElementById('memory_optimization_strategy').addEventListener('change', handleMemoryOptimizationChange);
+            
+            // 初始化内存优化策略显示
+            handleMemoryOptimizationChange();
+            
+            // 加载配置
+            loadConfig();
+            
+            // 初始化WebSocket连接
+            initializeSocket();
+            
+            addLogEntry({
+                level: 'info',
+                message: 'Wan2.2训练界面初始化完成',
+                timestamp: new Date().toLocaleTimeString()
+            });
+        });
+    </script>
+</body>
+</html>

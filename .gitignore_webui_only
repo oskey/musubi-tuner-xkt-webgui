@@ -1,0 +1,54 @@
+# WebUI项目专用.gitignore - 只同步指定的WebUI文件
+# 其他所有文件都被忽略
+
+# 忽略所有文件
+*
+
+# 但是允许以下指定的文件和目录
+!templates/
+!templates/**
+!images/
+!images/**
+![Webui] 安装musubi-tuner.bat
+![Webui] Start Qwen.bat
+![Webui] Start Wan22.bat
+!qwen_webui.md
+!qwen_webui.py
+!wan_webui_config.json
+!wan22_webui.md
+!wan22_webui.py
+!README.md
+!readme.md
+
+# 确保.git目录不被忽略
+!.git/
+!.gitignore_webui_only
+
+# 忽略常见的系统文件
+.DS_Store
+Thumbs.db
+*.tmp
+*.log
+
+# 忽略Python缓存
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# 忽略IDE文件
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 忽略临时文件
+*.bak
+*.orig
+*.rej
+
+# 说明：
+# 1. 使用 * 忽略所有文件
+# 2. 使用 !filename 来排除（允许）特定文件
+# 3. 这样确保只有您指定的文件会被同步到GitHub

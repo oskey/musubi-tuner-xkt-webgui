@@ -1,0 +1,1431 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Qwen-Image Web UI</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 30px;
+            padding: 30px;
+        }
+        
+        .config-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        
+        .training-actions {
+            grid-column: 1 / -1;
+        }
+        
+        .panel {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(79, 172, 254, 0.1);
+        }
+        
+        .panel h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.4em;
+            border-bottom: 2px solid #4facfe;
+            padding-bottom: 10px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+            cursor: help;
+        }
+        
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e8ed;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #4facfe;
+            box-shadow: 0 0 0 3px rgba(79, 172, 254, 0.1);
+        }
+        
+        .config-section {
+            margin-bottom: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .section-header {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            padding: 12px 16px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 600;
+            color: #495057;
+            border-bottom: 1px solid #e0e0e0;
+            transition: background-color 0.2s ease;
+        }
+        
+        .section-header:hover {
+            background: linear-gradient(135deg, #e9ecef 0%, #dee2e6 100%);
+        }
+        
+        .toggle-icon {
+            font-size: 12px;
+            transition: transform 0.2s ease;
+        }
+        
+        .section-content {
+            padding: 16px;
+            background: #fff;
+            transition: max-height 0.3s ease, padding 0.3s ease;
+            max-height: 2000px;
+            overflow: hidden;
+        }
+        
+        .section-content.collapsed {
+            max-height: 0;
+            padding: 0 16px;
+        }
+        
+        .collapsed .toggle-icon {
+            transform: rotate(-90deg);
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            margin-bottom: 10px;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(79, 172, 254, 0.4);
+        }
+        
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+        }
+        
+        .btn-danger:hover {
+            box-shadow: 0 5px 15px rgba(255, 107, 107, 0.4);
+        }
+        
+        .log-container {
+            grid-column: 1 / -1;
+            background: #1e1e1e;
+            border-radius: 15px;
+            padding: 20px;
+            height: 600px;
+            min-height: 600px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        #log-output {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+            background: #2d2d2d;
+            border-radius: 8px;
+            border: 1px solid #444;
+        }
+        
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+        
+        .log-info { color: #61dafb; }
+        .log-success { color: #98fb98; background: rgba(152, 251, 152, 0.1); }
+        .log-error { color: #ff6b6b; background: rgba(255, 107, 107, 0.1); }
+        .log-warning { color: #ffa500; background: rgba(255, 165, 0, 0.1); }
+        .log-output { color: #d4d4d4; }
+        .log-debug { color: #888; }
+        
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .status-idle { background: #95a5a6; }
+        .status-running { background: #f39c12; animation: pulse 1.5s infinite; }
+        .status-success { background: #27ae60; }
+        .status-error { background: #e74c3c; }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #e1e8ed;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4facfe, #00f2fe);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+                gap: 20px;
+                padding: 20px;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎨 Qwen-Image Web UI</h1>
+            <p>现代化的Qwen-Image训练管理界面</p>
+        </div>
+        
+        <div class="main-content">
+            <!-- 日志面板 -->
+            <div class="log-container">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h2 style="color: #61dafb; margin: 0;">📋 实时日志</h2>
+                    <div style="display: flex; gap: 10px;">
+                        <button onclick="clearLogs()" class="btn" style="padding: 5px 10px; font-size: 12px; background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);">🗑️ 清理日志</button>
+                        <button onclick="scrollToBottom()" class="btn" style="padding: 5px 10px; font-size: 12px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">滚动到底部</button>
+                    </div>
+                </div>
+                <div id="log-output"></div>
+            </div>
+            
+            <!-- 操作按钮区域 -->
+            <div class="operation-panel" style="margin: 20px 0; padding: 20px; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.3);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h2 style="color: #61dafb; margin: 0;">🎮 训练控制</h2>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <div class="status-indicator" id="status-indicator"></div>
+                        <span id="status-text" style="color: #d4d4d4; font-size: 14px;">就绪</span>
+                    </div>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill"></div>
+                </div>
+                <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-top: 15px;">
+                    <button onclick="startTensorBoard()" class="btn" id="tensorboard-btn">📊 启动 TensorBoard</button>
+                    <button onclick="startCacheVAE()" class="btn" id="cache-vae-btn">🔄 预缓存 VAE Latents</button>
+                    <button onclick="startCacheTextEncoder()" class="btn" id="cache-te-btn">📝 预缓存文本编码器输出</button>
+                    <button onclick="startTraining()" class="btn" id="train-btn">🎯 开始训练</button>
+                    <button onclick="stopTraining()" class="btn btn-danger" id="stop-btn" disabled>⏹️ 停止训练</button>
+                </div>
+            </div>
+            
+            <!-- 虚拟环境配置 -->
+            <div class="panel" style="margin-bottom: 20px;">
+                <h2>🐍 运行环境</h2>
+                <div class="form-group">
+                    <label title="启用虚拟环境可以确保训练过程使用指定的Python环境，避免依赖冲突。">启用虚拟环境</label>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <input type="checkbox" id="enable_venv" checked title="启用虚拟环境可以确保训练过程使用指定的Python环境，避免依赖冲突。">
+                        <span style="color: #666; font-size: 14px;">使用虚拟环境执行训练命令</span>
+                    </div>
+                </div>
+                
+                <div class="form-group" id="venv_path_group">
+                    <label title="虚拟环境的Python可执行文件路径。通常位于虚拟环境的Scripts目录下。">虚拟环境Python路径</label>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="text" id="venv_python_path" title="虚拟环境的Python可执行文件路径。通常位于虚拟环境的Scripts目录下。" style="flex: 1;">
+                        <button type="button" onclick="selectFolder('venv_python_path')" class="btn" style="padding: 8px 12px; font-size: 12px;">📁 选择</button>
+                    </div>
+                    <small style="color: #666; display: block; margin-top: 5px;">💡 虚拟环境的Scripts目录路径</small>
+                </div>
+            </div>
+            
+            <!-- 配置布局 -->
+            <div class="config-layout">
+                <!-- 左侧：基础配置 -->
+                <div class="panel">
+                    <h2>📁 基础配置</h2>
+                        <div class="form-group">
+                            <label title="TOML格式的数据集配置文件，定义了训练数据的路径、标签和预处理参数。该文件指定了图片位置、对应的文本描述、重复次数等训练所需的所有数据信息。">数据集配置文件 (dataset_config)</label>
+                            <div style="display: flex; gap: 10px; align-items: center;">
+                                <input type="text" id="dataset_config" title="TOML格式的数据集配置文件，定义了训练数据的路径、标签和预处理参数。该文件指定了图片位置、对应的文本描述、重复次数等训练所需的所有数据信息。" style="flex: 1;">
+                                <button type="button" onclick="selectFile('dataset_config', '.toml')" class="btn" style="padding: 8px 12px; font-size: 12px;">📁 选择</button>
+                            </div>
+                            <small style="color: #666; display: block; margin-top: 5px;">💡 包含训练数据路径和标签的TOML配置文件</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label title="预训练的Qwen-Image扩散模型路径。这是训练的基础模型，通常是从Hugging Face下载的模型文件或本地保存的模型路径。">预训练模型路径 (pretrained_model_name_or_path)</label>
+                            <div style="display: flex; gap: 10px; align-items: center;">
+                                <input type="text" id="pretrained_model_name_or_path" title="预训练的Qwen-Image扩散模型路径。这是训练的基础模型，通常是从Hugging Face下载的模型文件或本地保存的模型路径。" style="flex: 1;">
+                                <button type="button" onclick="selectFile('pretrained_model_name_or_path', '.safetensors')" class="btn" style="padding: 8px 12px; font-size: 12px;">📁 选择</button>
+                            </div>
+                            <small style="color: #666; display: block; margin-top: 5px;">💡 Qwen图像生成的基础模型文件</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label title="Qwen文本编码器模型路径。用于将文本提示编码为向量表示，是文本到图像生成的关键组件。">文本编码器路径 (text_encoder_path)</label>
+                            <div style="display: flex; gap: 10px; align-items: center;">
+                                <input type="text" id="text_encoder_path" title="Qwen文本编码器模型路径。用于将文本提示编码为向量表示，是文本到图像生成的关键组件。" style="flex: 1;">
+                                <button type="button" onclick="selectFile('text_encoder_path', '.safetensors')" class="btn" style="padding: 8px 12px; font-size: 12px;">📁 选择</button>
+                            </div>
+                            <small style="color: #666; display: block; margin-top: 5px;">💡 将文本提示转换为向量表示的模型</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label title="变分自编码器(VAE)模型路径。VAE负责在像素空间和潜在空间之间进行转换，是扩散模型训练的重要组件。">VAE模型路径 (vae_path)</label>
+                            <div style="display: flex; gap: 10px; align-items: center;">
+                                <input type="text" id="vae_path" title="变分自编码器(VAE)模型路径。VAE负责在像素空间和潜在空间之间进行转换，是扩散模型训练的重要组件。" style="flex: 1;">
+                                <button type="button" onclick="selectFile('vae_path', '.safetensors')" class="btn" style="padding: 8px 12px; font-size: 12px;">📁 选择</button>
+                            </div>
+                            <small style="color: #666; display: block; margin-top: 5px;">💡 负责图像的编码和解码处理</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label title="输出目录路径。训练完成的LoRA模型将保存到此目录。">输出目录 (output_dir)</label>
+                            <div style="display: flex; gap: 10px; align-items: center;">
+                                <input type="text" id="output_dir" title="输出目录路径。训练完成的LoRA模型将保存到此目录。" style="flex: 1;">
+                                <button type="button" onclick="selectFolder('output_dir')" class="btn" style="padding: 8px 12px; font-size: 12px;">📁 选择</button>
+                            </div>
+                            <small style="color: #666; display: block; margin-top: 5px;">💡 训练完成的模型文件保存位置</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label title="输出模型名称。训练完成后保存的LoRA模型文件名前缀。">输出模型名称 (output_name)</label>
+                            <input type="text" id="output_name" title="输出模型名称。训练完成后保存的LoRA模型文件名前缀。" style="width: 100%;">
+                            <small style="color: #666; display: block; margin-top: 5px;">💡 保存的LoRA模型文件名前缀</small>
+                        </div>
+                </div>
+                
+                <!-- 右侧训练参数面板 -->
+                <div class="panel">
+                    <h2>🎓 核心训练参数 (官方默认)</h2>
+                    
+                        <!-- 核心参数：训练批次大小 -->
+                        <div class="form-group">
+                            <label title="训练批次大小 - 从TOML配置文件读取。">训练批次大小 (train_batch_size)</label>
+                            <input type="number" id="train_batch_size" min="1" max="32" title="训练批次大小 - 从TOML配置文件读取。">
+                            <small style="color: #666; display: block; margin-top: 5px;">💡 从TOML文件的[general]部分读取，影响显存使用和训练速度</small>
+                        </div>
+                        
+                        <!-- 核心参数：数据重复次数 -->
+                        <div class="form-group">
+                            <label title="数据重复次数 - 从TOML配置文件读取。推荐值20~30（图片较少时），模型能更容易记住特征。">数据重复次数 (num_repeats)</label>
+                            <input type="number" id="num_repeats" min="1" max="100" title="数据重复次数 - 从TOML配置文件读取。推荐值20~30（图片较少时），模型能更容易记住特征。">
+                            <small style="color: #666; display: block; margin-top: 5px;">💡 从TOML文件的[[datasets]]部分读取。推荐值20~30（图片较少时），数据少时提高重复次数可有效提升训练效果</small>
+                        </div>
+                        
+                        <!-- 核心参数：学习率 -->
+                        <div class="form-group">
+                            <label title="学习率 - 推荐值：5e-05。控制模型参数更新的步长，是训练中最重要的超参数。数据少时，过高会导致过拟合，过低又难学到。">学习率 (learning_rate)</label>
+                <input type="text" id="learning_rate" title="学习率 - 推荐值：5e-05。控制模型参数更新的步长，是训练中最重要的超参数。数据少时，过高会导致过拟合，过低又难学到。">
+                <small style="color: #666; display: block; margin-top: 5px;">💡 推荐区间：2e-4 ~ 1e-4（触发容易，效果立竿见影）。数据少时，过高会导致过拟合，过低又难学到</small>
+                        </div>
+                        
+                        <!-- 核心参数：LoRA维度 -->
+                        <div class="form-group">
+                            <label title="LoRA维度 - 推荐值：8。控制低秩矩阵的维度，影响模型容量和训练效果。如果只训练单一角色/风格，64更合适。">LoRA维度 (network_dim)</label>
+                <input type="number" id="network_dim" min="4" max="128" title="LoRA维度 - 推荐值：8。控制低秩矩阵的维度，影响模型容量和训练效果。如果只训练单一角色/风格，64更合适。">
+                <small style="color: #666; display: block; margin-top: 5px;">💡 推荐值：8，平衡模型容量和训练效率。如果只训练单一角色/风格，64更合适</small>
+                        </div>
+                        
+                        <!-- 核心参数：训练轮数 -->
+                        <div class="form-group">
+                            <label title="最大训练轮数 - 推荐值：10。控制训练的总轮数。数据少时，提高轮数可以有效提升训练效果。">最大训练轮数 (max_train_epochs)</label>
+                            <input type="number" id="max_train_epochs" min="1" max="100" title="最大训练轮数 - 推荐值：10。控制训练的总轮数。数据少时，提高轮数可以有效提升训练效果。">
+                            <small style="color: #666; display: block; margin-top: 5px;">💡 推荐值：10，适合快速训练和测试。数据少时，提高轮数可以有效提升训练效果</small>
+                        </div>
+                        
+                        
+                        <!-- 高级参数折叠区域 -->
+                        <div class="collapsible-section">
+                            <button type="button" class="collapsible-header" onclick="toggleSection('advanced-params')" style="width: 100%; padding: 12px; background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%); border: none; border-radius: 8px; color: #61dafb; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: space-between; margin: 15px 0;">
+                                <span>⚙️ 高级参数 (可选)</span>
+                                <span class="toggle-icon" id="advanced-toggle-icon">▼</span>
+                            </button>
+                            <div class="collapsible-content" id="advanced-params" style="display: none; padding: 10px; border: 1px solid #4a5568; border-radius: 8px; margin-top: 10px;">
+                                
+                                <!-- 保存间隔 -->
+                                <div class="form-group">
+                                    <label title="每N轮保存一次 - 官方默认值：1。控制模型检查点的保存频率。">每N轮保存 (save_every_n_epochs)</label>
+                                    <input type="number" id="save_every_n_epochs" min="1" max="10" title="每N轮保存一次 - 官方默认值：1。控制模型检查点的保存频率。">
+                                    <small style="color: #666; display: block; margin-top: 5px;">💡 官方推荐值：1，每轮都保存便于选择最佳检查点</small>
+                                </div>
+                                
+                                <!-- 随机种子 -->
+                                <div class="form-group">
+                                    <label title="随机种子 - 官方默认值：42。确保训练结果可复现。">随机种子 (seed)</label>
+                                    <input type="number" id="seed" min="0" title="随机种子 - 官方默认值：42。确保训练结果可复现。">
+                                    <small style="color: #666; display: block; margin-top: 5px;">💡 官方推荐值：42，固定种子确保结果可复现</small>
+                                </div>
+                                
+                                <!-- 混合精度 -->
+                                <div class="form-group">
+                                    <label title="混合精度训练 - 官方默认值：bf16。节省显存且保持训练精度。">混合精度 (mixed_precision)</label>
+                                    <select id="mixed_precision" title="混合精度训练 - 官方默认值：bf16。节省显存且保持训练精度。">
+                                        <option value="bf16" selected>bf16</option>
+                                        <option value="fp16">fp16</option>
+                                        <option value="no">no</option>
+                                    </select>
+                                    <small style="color: #666; display: block; margin-top: 5px;">💡 官方推荐值：bf16，最佳性能和稳定性平衡</small>
+                                </div>
+                                
+                                <!-- 批次和累积参数 -->
+                                <div class="form-group">
+                                    <label title="梯度累积步数。模拟更大批次大小而不增加显存占用。">梯度累积步数 (gradient_accumulation_steps)</label>
+                                    <input type="number" id="gradient_accumulation_steps" min="1" title="梯度累积步数。模拟更大批次大小而不增加显存占用。">
+                                    <small style="color: #666; display: block; margin-top: 5px;">💡 建议值：1-4，用于模拟更大批次</small>
+                                </div>
+                                
+                                <!-- LoRA Alpha参数 -->
+                                <div class="form-group">
+                                    <label title="LoRA Alpha值。通常设置为网络维度的一半或相等。">LoRA Alpha (network_alpha)</label>
+                                    <input type="number" id="network_alpha" min="1" title="LoRA Alpha值。通常设置为网络维度的一半或相等。">
+                                    <small style="color: #666; display: block; margin-top: 5px;">💡 建议值：通常为维度的一半</small>
+                                </div>
+                                
+                                <!-- 优化器选择 -->
+                                <div class="form-group">
+                                    <label title="优化器类型 - 官方默认：adamw8bit。">优化器 (optimizer_type)</label>
+                                    <select id="optimizer_type" title="优化器类型 - 官方默认：adamw8bit。">
+                                        <option value="adamw8bit" selected>adamw8bit</option>
+                                        <option value="AdamW">AdamW</option>
+                                        <option value="Lion">Lion</option>
+                                        <option value="SGDNesterov">SGDNesterov</option>
+                                        <option value="Adafactor">Adafactor</option>
+                                    </select>
+                                    <small style="color: #666; display: block; margin-top: 5px;">💡 官方推荐值：adamw8bit，节省内存</small>
+                                </div>
+                                
+                                <!-- 时间步采样 -->
+                                <div class="form-group">
+                                    <label title="时间步采样方法 - 官方默认：shift。">时间步采样 (timestep_sampling)</label>
+                                    <select id="timestep_sampling" title="时间步采样方法 - 官方默认：shift。">
+                                        <option value="shift" selected>shift</option>
+                                        <option value="uniform">uniform</option>
+                                        <option value="sigma">sigma</option>
+                                        <option value="sigmoid">sigmoid</option>
+                                    </select>
+                                    <small style="color: #666; display: block; margin-top: 5px;">💡 官方推荐值：shift，适用于Qwen模型</small>
+                                </div>
+                                
+                                <!-- 权重方案 -->
+                                <div class="form-group">
+                                    <label title="权重方案 - 官方默认：none。">权重方案 (weighting_scheme)</label>
+                                    <select id="weighting_scheme" title="权重方案 - 官方默认：none。">
+                                        <option value="none" selected>none</option>
+                                        <option value="logit_normal">logit_normal</option>
+                                        <option value="mode">mode</option>
+                                        <option value="cosmap">cosmap</option>
+                                    </select>
+                                    <small style="color: #666; display: block; margin-top: 5px;">💡 官方推荐值：none，保持默认</small>
+                                </div>
+                                
+                                <!-- 离散流偏移 -->
+                                <div class="form-group">
+                                    <label title="离散流偏移 - 官方默认：2.2。">离散流偏移 (discrete_flow_shift)</label>
+                                    <input type="number" id="discrete_flow_shift" step="0.1" title="离散流偏移 - 官方默认：2.2。">
+                                    <small style="color: #666; display: block; margin-top: 5px;">💡 官方推荐值：2.2，Qwen模型专用参数</small>
+                                </div>
+                                
+                                <!-- 数据加载器工作进程数 -->
+                                <div class="form-group">
+                                    <label title="数据加载器工作进程数 - 官方默认：2。">数据加载器工作进程数 (max_data_loader_n_workers)</label>
+                                    <input type="number" id="max_data_loader_n_workers" min="0" title="数据加载器工作进程数 - 官方默认：2。">
+                                    <small style="color: #666; display: block; margin-top: 5px;">💡 官方推荐值：2，平衡性能和资源占用</small>
+                                </div>
+                                
+                                
+                                <!-- 网络模块 -->
+                                <div class="form-group">
+                                    <label title="网络模块 - 官方默认：networks.lora_qwen_image。">网络模块 (network_module)</label>
+                                    <input type="text" id="network_module" title="网络模块 - 官方默认：networks.lora_qwen_image。">
+                                    <small style="color: #666; display: block; margin-top: 5px;">💡 官方推荐值：networks.lora_qwen_image，Qwen专用LoRA模块</small>
+                                </div>
+                                
+                                <!-- 网络额外参数 -->
+                                <div class="form-group">
+                                    <label title="LoRA网络额外参数 - 用于配置LoRA+等高级功能。">网络额外参数 (network_args)</label>
+                                    <input type="text" id="network_args" title="LoRA网络额外参数 - 用于配置LoRA+等高级功能。">
+                                    <small style="color: #666; display: block; margin-top: 5px;">💡 推荐值：loraplus_lr_ratio=4，如果你想让LoRA更容易触发，提高该值。为LoRA的A和B矩阵设置不同学习率比例</small>
+                                </div>
+                                
+                                <!-- 开关选项 -->
+                                <div class="form-group">
+                                    <label title="启用SDPA注意力机制 - 官方默认：开启。">SDPA (sdpa)</label>
+                                    <input type="checkbox" id="sdpa" checked title="启用SDPA注意力机制 - 官方默认：开启。">
+                                    <small style="color: #666; display: block; margin-top: 5px;">💡 官方推荐：开启，提升训练性能</small>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label title="启用梯度检查点 - 官方默认：开启。">梯度检查点 (gradient_checkpointing)</label>
+                                    <input type="checkbox" id="gradient_checkpointing" checked title="启用梯度检查点 - 官方默认：开启。">
+                                    <small style="color: #666; display: block; margin-top: 5px;">💡 官方推荐：开启，节省显存</small>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label title="持久化数据加载器 - 官方默认：开启。">持久化数据加载器 (persistent_data_loader_workers)</label>
+                                    <input type="checkbox" id="persistent_data_loader_workers" checked title="持久化数据加载器 - 官方默认：开启。">
+                                    <small style="color: #666; display: block; margin-top: 5px;">💡 官方推荐：开启，提升数据加载效率</small>
+                                </div>
+                                
+                                <!-- FP8量化选项 -->
+                                <div class="form-group">
+                                    <label title="启用FP8基础模型量化 - 节省显存，提升训练效率。">FP8基础量化 (fp8_base)</label>
+                                    <input type="checkbox" id="fp8_base" checked title="启用FP8基础模型量化 - 节省显存，提升训练效率。">
+                                    <small style="color: #666; display: block; margin-top: 5px;">💡 推荐：开启，显著节省显存占用</small>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label title="启用FP8缩放量化 - 进一步优化显存使用。">FP8缩放量化 (fp8_scaled)</label>
+                                    <input type="checkbox" id="fp8_scaled" checked title="启用FP8缩放量化 - 进一步优化显存使用。">
+                                    <small style="color: #666; display: block; margin-top: 5px;">💡 推荐：开启，与FP8基础量化配合使用</small>
+                                </div>
+                                
+                                <!-- 内存优化参数 -->
+                                <div class="form-group">
+                                    <label title="交换到CPU的Transformer块数量 - 节省显存，但会影响训练速度。">CPU交换块数 (blocks_to_swap)</label>
+                                    <input type="number" id="blocks_to_swap" min="0" max="50" title="交换到CPU的Transformer块数量 - 节省显存，但会影响训练速度。">
+                                    <small style="color: #666; display: block; margin-top: 5px;">💡 推荐值：20，平衡显存节省和训练速度</small>
+                                </div>
+                                
+                                <!-- TensorBoard日志配置 -->
+                                <div class="form-group">
+                                    <label title="日志目录路径 - 存储训练日志和TensorBoard数据。">日志目录 (logging_dir)</label>
+                                    <input type="text" id="logging_dir" title="日志目录路径 - 存储训练日志和TensorBoard数据。">
+                                    <small style="color: #666; display: block; margin-top: 5px;">💡 建议值：./logs，用于存储TensorBoard日志</small>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label title="日志记录工具 - 官方默认：tensorboard。">日志工具 (log_with)</label>
+                                    <select id="log_with" title="日志记录工具 - 官方默认：tensorboard。">
+                                        <option value="tensorboard" selected>tensorboard</option>
+                                        <option value="wandb">wandb</option>
+                                        <option value="all">all</option>
+                                    </select>
+                                    <small style="color: #666; display: block; margin-top: 5px;">💡 官方推荐：tensorboard，可视化训练过程</small>
+                                </div>
+                                
+                            </div>
+                        </div>
+
+                </div>
+            </div>
+            
+            <!-- 配置操作面板 -->
+            <div class="config-actions">
+                <div class="panel">
+                    <h2>💾 配置管理</h2>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <button onclick="saveConfig()" class="btn">💾 保存配置</button>
+                        <button onclick="loadConfig()" class="btn">📂 加载配置</button>
+                        <button onclick="resetConfig()" class="btn">🔄 重置配置</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let isRunning = false;
+        
+        function setButtonsEnabled(enabled) {
+            const buttons = ['cache-vae-btn', 'cache-te-btn', 'train-btn'];
+            buttons.forEach(id => {
+                document.getElementById(id).disabled = !enabled;
+            });
+            document.getElementById('stop-btn').disabled = enabled;
+            isRunning = !enabled;
+        }
+        
+        function updateStatus(status, message) {
+            const indicator = document.getElementById('status-indicator');
+            const text = document.getElementById('status-text');
+            
+            indicator.className = `status-indicator status-${status}`;
+            text.textContent = message;
+        }
+        
+        function updateProgress(percent) {
+            document.getElementById('progress-fill').style.width = percent + '%';
+        }
+        
+        function selectFile(inputId, fileExtension) {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = fileExtension;
+            input.onchange = function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    // 创建一个临时的URL来读取文件内容并获取路径信息
+                    const reader = new FileReader();
+                    
+                    // 尝试获取完整路径
+                    let fullPath = file.name;
+                    
+                    // 在支持的环境中获取完整路径
+                    if (file.path) {
+                        fullPath = file.path;
+                    } else if (file.webkitRelativePath) {
+                        fullPath = file.webkitRelativePath;
+                    } else {
+                        // 在标准Web环境中，我们无法获取完整路径
+                        // 但可以提示用户手动输入或使用相对路径
+                        const currentDir = 'C:\\Users\\oskey\\ai\\musubi-tuner';
+                        const fileName = file.name;
+                        
+                        // 根据文件类型推测可能的路径
+                        if (fileExtension === '.toml') {
+                            fullPath = currentDir + '\\ai_data\\datasets\\' + fileName;
+                        } else if (fileExtension === '.safetensors') {
+                            if (inputId === 'pretrained_model_name_or_path') {
+                                fullPath = currentDir + '\\model\\diffusion_models\\' + fileName;
+                            } else if (inputId === 'text_encoder_path') {
+                                fullPath = currentDir + '\\model\\text_encoders\\' + fileName;
+                            } else if (inputId === 'vae_path') {
+                                fullPath = currentDir + '\\model\\vae\\' + fileName;
+                            }
+                        }
+                    }
+                    
+                    document.getElementById(inputId).value = fullPath;
+                    
+                    // 如果是数据集配置文件，自动读取batch_size和num_repeats
+                    if (inputId === 'dataset_config' && fileExtension === '.toml') {
+                        readBatchSizeFromToml(fullPath);
+                        readNumRepeatsFromToml(fullPath);
+                    }
+                }
+            };
+            input.click();
+        }
+        
+        function selectFolder(inputId) {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.webkitdirectory = true;
+            input.onchange = function(e) {
+                const files = e.target.files;
+                if (files.length > 0) {
+                    let folderPath;
+                    
+                    // 尝试获取完整路径
+                    if (files[0].path) {
+                        // 从完整路径中提取文件夹路径
+                        const fullPath = files[0].path;
+                        const pathParts = fullPath.split(/[\\\/]/);
+                        pathParts.pop(); // 移除文件名
+                        folderPath = pathParts.join('\\') + '\\';
+                    } else if (files[0].webkitRelativePath) {
+                        // 在标准Web环境中，构建完整路径
+                        const relativePath = files[0].webkitRelativePath;
+                        // 修复BUG：获取完整的文件夹路径，而不是只取第一部分
+                        const pathParts = relativePath.split('/');
+                        pathParts.pop(); // 移除文件名
+                        const folderRelativePath = pathParts.join('\\');
+                        const currentDir = 'C:\\Users\\oskey\\ai\\musubi-tuner';
+                        folderPath = currentDir + '\\' + folderRelativePath + '\\';
+                    } else {
+                        // 回退到相对路径
+                        const path = files[0].webkitRelativePath ? files[0].webkitRelativePath.split('/')[0] : 'selected_folder';
+                        folderPath = './' + path + '/';
+                    }
+                    
+                    document.getElementById(inputId).value = folderPath;
+                }
+            };
+            input.click();
+        }
+        
+        function readBatchSizeFromToml(tomlPath) {
+            fetch('/api/read_batch_size_from_toml', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ toml_path: tomlPath })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.batch_size !== null) {
+                    document.getElementById('train_batch_size').value = data.batch_size;
+                    addLogEntry({
+                        level: 'info',
+                        message: `已从 ${tomlPath} 读取 batch_size: ${data.batch_size}`,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                } else {
+                    addLogEntry({
+                        level: 'warning',
+                        message: data.message || '无法从TOML文件读取batch_size',
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                }
+            })
+            .catch(error => {
+                addLogEntry({
+                    level: 'error',
+                    message: '读取TOML文件失败: ' + error.message,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            });
+        }
+        
+        function readNumRepeatsFromToml(tomlPath) {
+            fetch('/api/read_num_repeats_from_toml', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ toml_path: tomlPath })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.num_repeats !== null) {
+                    document.getElementById('num_repeats').value = data.num_repeats;
+                    addLogEntry({
+                        level: 'info',
+                        message: `已从 ${tomlPath} 读取 num_repeats: ${data.num_repeats}`,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                } else {
+                    addLogEntry({
+                        level: 'warning',
+                        message: data.message || '无法从TOML文件读取num_repeats',
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                }
+            })
+            .catch(error => {
+                addLogEntry({
+                    level: 'error',
+                    message: '读取TOML文件失败: ' + error.message,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            });
+        }
+        
+        function getConfig() {
+            // 辅助函数：安全获取元素值
+            function safeGetValue(id, defaultValue = '', isCheckbox = false) {
+                const element = document.getElementById(id);
+                if (!element) {
+                    console.warn(`Element with id '${id}' not found, using default value:`, defaultValue);
+                    return defaultValue;
+                }
+                return isCheckbox ? element.checked : element.value;
+            }
+            
+            function safeGetIntValue(id, defaultValue = 0) {
+                const value = safeGetValue(id, defaultValue.toString());
+                return parseInt(value) || defaultValue;
+            }
+            
+            function safeGetFloatValue(id, defaultValue = 0.0) {
+                const value = safeGetValue(id, defaultValue.toString());
+                return parseFloat(value) || defaultValue;
+            }
+            
+            const config = {
+                enable_venv: safeGetValue('enable_venv', true, true),
+                venv_python_path: safeGetValue('venv_python_path', './venv/Scripts/'),
+                dataset_config: safeGetValue('dataset_config', './dataset_config.toml'),
+                output_dir: safeGetValue('output_dir', './output'),
+                pretrained_model_name_or_path: safeGetValue('pretrained_model_name_or_path', './model/diffusion_models/qwen_image_bf16.safetensors'),
+                text_encoder_path: safeGetValue('text_encoder_path', './model/text_encoders/qwen_2.5_vl_7b.safetensors'),
+                vae_path: safeGetValue('vae_path', './model/vae/qwen_image_vae.safetensors'),
+                learning_rate: (() => {
+                    const value = safeGetValue('learning_rate', '5e-05');
+                    // 如果是数字格式(如0.00005)，转换为科学计数法格式
+                    const numValue = parseFloat(value);
+                    if (!isNaN(numValue) && numValue === 0.00005) {
+                        return '5e-05';
+                    }
+                    return value;
+                })(),
+                train_batch_size: safeGetIntValue('train_batch_size', 1),
+                num_repeats: safeGetIntValue('num_repeats', 5),
+                gradient_accumulation_steps: safeGetIntValue('gradient_accumulation_steps', 1),
+                mixed_precision: safeGetValue('mixed_precision', 'bf16'),
+                network_dim: safeGetIntValue('network_dim', 8),
+                network_alpha: safeGetIntValue('network_alpha', 16),
+                optimizer_type: safeGetValue('optimizer_type', 'AdamW8bit'),
+                lr_scheduler: safeGetValue('lr_scheduler', 'cosine'),
+                lr_warmup_steps: safeGetIntValue('lr_warmup_steps', 100),
+                discrete_flow_shift: safeGetFloatValue('discrete_flow_shift', 2.2),
+                max_data_loader_n_workers: safeGetIntValue('max_data_loader_n_workers', 2),
+                max_train_epochs: safeGetIntValue('max_train_epochs', 10),
+                save_every_n_epochs: safeGetIntValue('save_every_n_epochs', 1),
+                num_cpu_threads_per_process: safeGetIntValue('num_cpu_threads_per_process', 1),
+                timestep_sampling: safeGetValue('timestep_sampling', 'uniform'),
+                weighting_scheme: safeGetValue('weighting_scheme', 'logit_normal'),
+                network_module: safeGetValue('network_module', 'networks.lora_qwen_image'),
+                network_args: safeGetValue('network_args', 'loraplus_lr_ratio=4'),
+                seed: safeGetIntValue('seed', 42),
+                output_name: safeGetValue('output_name', 'lovemf_lora'),
+                blocks_to_swap: safeGetIntValue('blocks_to_swap', 20),
+                logging_dir: safeGetValue('logging_dir', './logs'),
+                log_with: safeGetValue('log_with', 'tensorboard')
+            };
+            
+            // 保存所有checkbox的状态（包括未勾选的false值）
+            config.sdpa = safeGetValue('sdpa', false, true);
+            config.gradient_checkpointing = safeGetValue('gradient_checkpointing', false, true);
+            config.persistent_data_loader_workers = safeGetValue('persistent_data_loader_workers', false, true);
+            config.enable_venv = safeGetValue('enable_venv', false, true);
+            
+            // 新增参数的checkbox状态
+            config.fp8_base = safeGetValue('fp8_base', false, true);
+            config.fp8_scaled = safeGetValue('fp8_scaled', false, true);
+            
+            return config;
+        }
+        
+        function addLogEntry(entry) {
+            const logOutput = document.getElementById('log-output');
+            if (!logOutput) return;
+            
+            // 检查用户是否在底部或接近底部（容差20px）
+            const shouldScroll = logOutput.scrollTop + logOutput.clientHeight >= logOutput.scrollHeight - 20;
+            
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry log-' + entry.level;
+            logEntry.innerHTML = `<span style="color: #888;">[${entry.timestamp}]</span> ${entry.message}`;
+            logOutput.appendChild(logEntry);
+            
+            // 更新日志计数
+            lastLogCount++;
+            
+            // 如果用户在底部或接近底部，自动滚动到最新日志
+            if (shouldScroll) {
+                // 使用setTimeout确保DOM更新后再滚动
+                setTimeout(() => {
+                    logOutput.scrollTop = logOutput.scrollHeight;
+                }, 10);
+            }
+        }
+        
+        function startCacheVAE() {
+            if (isRunning) return;
+            
+            setButtonsEnabled(false);
+            updateStatus('running', '正在预缓存 VAE Latents...');
+            
+            const config = getConfig();
+            
+            fetch('/api/cache_vae', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(config)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    updateStatus('success', 'VAE Latents 缓存完成');
+                } else {
+                    updateStatus('error', 'VAE 缓存失败: ' + data.message);
+                }
+                setButtonsEnabled(true);
+            })
+            .catch(error => {
+                updateStatus('error', '请求失败: ' + error.message);
+                setButtonsEnabled(true);
+            });
+        }
+        
+        function startCacheTextEncoder() {
+            if (isRunning) return;
+            
+            setButtonsEnabled(false);
+            updateStatus('running', '正在预缓存文本编码器输出...');
+            
+            const config = getConfig();
+            
+            fetch('/api/cache_text_encoder', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(config)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    updateStatus('success', '文本编码器输出缓存完成');
+                } else {
+                    updateStatus('error', '文本编码器缓存失败: ' + data.message);
+                }
+                setButtonsEnabled(true);
+            })
+            .catch(error => {
+                updateStatus('error', '请求失败: ' + error.message);
+                setButtonsEnabled(true);
+            });
+        }
+        
+        function startTraining() {
+            if (isRunning) return;
+            
+            setButtonsEnabled(false);
+            updateStatus('running', '正在开始训练...');
+            
+            const config = getConfig();
+            
+            fetch('/api/start_training', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(config)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    updateStatus('running', '训练进行中...');
+                } else {
+                    updateStatus('error', '训练启动失败: ' + data.message);
+                    setButtonsEnabled(true);
+                }
+            })
+            .catch(error => {
+                updateStatus('error', '请求失败: ' + error.message);
+                setButtonsEnabled(true);
+            });
+        }
+        
+        function stopTraining() {
+            fetch('/api/stop_training', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    updateStatus('idle', '训练已停止');
+                } else {
+                    updateStatus('error', '停止训练失败: ' + data.message);
+                }
+                setButtonsEnabled(true);
+            })
+            .catch(error => {
+                updateStatus('error', '请求失败: ' + error.message);
+            });
+        }
+        
+        function startTensorBoard() {
+            fetch('/api/start_tensorboard', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('✅ TensorBoard启动成功！\n访问地址: http://localhost:6006');
+                    // 自动打开TensorBoard页面
+                    window.open('http://localhost:6006', '_blank');
+                } else {
+                    alert('❌ TensorBoard启动失败: ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('❌ 启动TensorBoard时发生错误: ' + error.message);
+            });
+        }
+        
+        // 定期获取日志
+        let lastLogCount = 0;
+        
+        function fetchLogs() {
+            fetch('/api/logs', {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                cache: 'no-cache'
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                const logOutput = document.getElementById('log-output');
+                if (!logOutput || !data.logs) return;
+                
+                // 重置错误计数器（成功获取日志）
+                window.logFetchErrorCount = 0;
+                
+                // 只处理新的日志条目
+                if (data.logs.length > lastLogCount) {
+                    // 检查用户是否在底部或接近底部（容差50px）
+                    const isAtBottom = logOutput.scrollTop + logOutput.clientHeight >= logOutput.scrollHeight - 50;
+                    
+                    // 只添加新的日志条目
+                    const newLogs = data.logs.slice(lastLogCount);
+                    newLogs.forEach(entry => {
+                        const logEntry = document.createElement('div');
+                        logEntry.className = 'log-entry log-' + entry.level;
+                        logEntry.innerHTML = `<span style="color: #888;">[${entry.timestamp}]</span> ${entry.message}`;
+                        logOutput.appendChild(logEntry);
+                        
+                        // 检测训练完成状态
+                        if (entry.message.includes('✅ LoRA训练 完成') || 
+                            entry.message.includes('✅') && (entry.message.includes('训练') || entry.message.includes('完成')) && entry.level === 'success') {
+                            // 训练完成，更新界面状态
+                            updateStatus('success', '训练已完成');
+                            setButtonsEnabled(true);
+                        }
+                        
+                        // 检测训练失败状态
+                        if (entry.message.includes('❌') && (entry.message.includes('训练') || entry.message.includes('失败')) && entry.level === 'error') {
+                            // 训练失败，更新界面状态
+                            updateStatus('error', '训练失败');
+                            setButtonsEnabled(true);
+                        }
+                    });
+                    
+                    lastLogCount = data.logs.length;
+                    
+                    // 自动滚动到最新日志（增加容差并使用更可靠的滚动方法）
+                    if (isAtBottom) {
+                        // 使用requestAnimationFrame确保DOM更新完成后再滚动
+                        requestAnimationFrame(() => {
+                            logOutput.scrollTop = logOutput.scrollHeight;
+                            // 双重保险，再次滚动
+                            setTimeout(() => {
+                                logOutput.scrollTop = logOutput.scrollHeight;
+                            }, 50);
+                        });
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('获取日志失败:', error);
+                // 只在连续失败时显示错误（避免频繁显示错误）
+                if (!window.logFetchErrorCount) window.logFetchErrorCount = 0;
+                window.logFetchErrorCount++;
+                
+                if (window.logFetchErrorCount <= 3) {
+                    const logOutput = document.getElementById('log-output');
+                    if (logOutput) {
+                        const errorEntry = document.createElement('div');
+                        errorEntry.className = 'log-entry log-error';
+                        errorEntry.innerHTML = `<span style="color: #888;">[${new Date().toLocaleString()}]</span> 获取日志失败 (${window.logFetchErrorCount}/3): ${error.message}`;
+                        logOutput.appendChild(errorEntry);
+                        
+                        // 自动滚动到错误信息
+                        setTimeout(() => {
+                            logOutput.scrollTop = logOutput.scrollHeight;
+                        }, 100);
+                    }
+                }
+            });
+        }
+        
+        // 滚动到底部函数
+        function scrollToBottom() {
+            const logOutput = document.getElementById('log-output');
+            if (logOutput) {
+                logOutput.scrollTop = logOutput.scrollHeight;
+            }
+        }
+        
+        // 清理日志函数
+        function clearLogs() {
+            fetch('/api/clear_logs', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const logOutput = document.getElementById('log-output');
+                    if (logOutput) {
+                        logOutput.innerHTML = '';
+                        lastLogCount = 0;
+                        // 添加清理成功提示
+                        addLogEntry({
+                            level: 'info',
+                            timestamp: new Date().toLocaleString(),
+                            message: '日志已清理 🧹'
+                        });
+                        // 滚动到底部
+                        setTimeout(() => {
+                            logOutput.scrollTop = logOutput.scrollHeight;
+                        }, 100);
+                    }
+                } else {
+                    console.error('清理日志失败:', data.message);
+                }
+            })
+            .catch(error => {
+                console.error('清理日志请求失败:', error);
+            });
+        }
+        
+        // 初始化
+        updateStatus('idle', '就绪');
+        // 初始获取日志并滚动到底部
+        fetchLogs();
+        setTimeout(scrollToBottom, 500);
+        setInterval(fetchLogs, 1000);
+        
+        function saveConfig() {
+            const config = getConfig();
+            
+            fetch('/api/save_config', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(config)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('✅ 配置保存成功！');
+                } else {
+                    alert('❌ 配置保存失败: ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('❌ 保存配置时发生错误: ' + error.message);
+            });
+        }
+        
+        function loadConfig(silent = false) {
+            fetch('/api/load_config')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.config) {
+                    const config = data.config;
+                    
+                    // 更新所有表单字段
+                    Object.keys(config).forEach(key => {
+                        const element = document.getElementById(key);
+                        if (element) {
+                            if (element.type === 'checkbox') {
+                                element.checked = config[key];
+                            } else {
+                                // 特殊处理learning_rate，确保显示为科学计数法格式
+                                if (key === 'learning_rate') {
+                                    const numValue = parseFloat(config[key]);
+                                    if (!isNaN(numValue) && numValue === 0.00005) {
+                                        element.value = '5e-05';
+                                    } else {
+                                        element.value = config[key];
+                                    }
+                                } else {
+                                    element.value = config[key];
+                                }
+                            }
+                        } else {
+                            console.warn(`Element with id '${key}' not found when loading config`);
+                        }
+                    });
+                    
+                    if (!silent) {
+                        alert('✅ 配置加载成功！');
+                    }
+                } else {
+                    if (!silent) {
+                        alert('❌ 配置加载失败: ' + (data.message || '未知错误'));
+                    }
+                }
+            })
+            .catch(error => {
+                if (!silent) {
+                    alert('❌ 加载配置时发生错误: ' + error.message);
+                }
+            });
+        }
+        
+        function toggleSection(sectionId) {
+             const section = document.getElementById(sectionId);
+             const header = section.previousElementSibling;
+             const icon = header.querySelector('.toggle-icon');
+             
+             if (section.classList.contains('collapsed')) {
+                 section.classList.remove('collapsed');
+                 header.classList.remove('collapsed');
+                 icon.textContent = '▼';
+             } else {
+                 section.classList.add('collapsed');
+                 header.classList.add('collapsed');
+                 icon.textContent = '▶';
+             }
+         }
+         
+         function loadConfigSilently() {
+             loadConfig(true);
+         }
+         
+         function resetConfig() {
+             if (confirm('确定要重置配置吗？这将恢复所有参数为默认值并自动保存。')) {
+                 fetch('/api/reset_config', {
+                     method: 'POST'
+                 })
+                 .then(response => response.json())
+                 .then(config => {
+                     Object.keys(config).forEach(key => {
+                         const element = document.getElementById(key);
+                         if (element) {
+                             if (element.type === 'checkbox') {
+                                 element.checked = config[key];
+                             } else {
+                                 // 特殊处理learning_rate，确保显示为科学计数法格式
+                                 if (key === 'learning_rate') {
+                                     const numValue = parseFloat(config[key]);
+                                     if (!isNaN(numValue) && numValue === 0.00005) {
+                                         element.value = '5e-05';
+                                     } else {
+                                         element.value = config[key];
+                                     }
+                                 } else {
+                                     element.value = config[key];
+                                 }
+                             }
+                         } else {
+                             console.warn(`Element with id '${key}' not found when resetting config`);
+                         }
+                     });
+                     // 重置后自动保存配置
+                     saveConfig();
+                     alert('✅ 配置已重置为默认值并保存');
+                 })
+                 .catch(error => {
+                     alert('❌ 重置配置失败: ' + error.message);
+                 });
+             }
+         }
+         
+         function checkFiles() {
+             fetch('/api/check_files')
+                 .then(response => response.json())
+                 .then(data => {
+                     let message = '文件检查结果:\n';
+                     if (data.dataset_exists) {
+                         message += '✓ 数据集配置文件存在\n';
+                     } else {
+                         message += '✗ 数据集配置文件不存在\n';
+                     }
+                     if (data.model_exists) {
+                         message += '✓ 模型文件存在\n';
+                     } else {
+                         message += '✗ 模型文件不存在\n';
+                     }
+                     if (data.vae_exists) {
+                         message += '✓ VAE模型文件存在\n';
+                     } else {
+                         message += '✗ VAE模型文件不存在\n';
+                     }
+                     alert(message);
+                 })
+                 .catch(error => {
+                     alert('检查文件失败: ' + error.message);
+                 });
+         }
+         
+         // 页面加载完成后初始化
+         // 高级参数折叠功能
+         function toggleSection(sectionId) {
+             const content = document.getElementById(sectionId);
+             const icon = document.getElementById('advanced-toggle-icon');
+             
+             if (content.style.display === 'none' || content.style.display === '') {
+                 content.style.display = 'block';
+                 icon.textContent = '▲';
+             } else {
+                 content.style.display = 'none';
+                 icon.textContent = '▼';
+             }
+         }
+         
+         // 初始化默认值函数
+         function initializeDefaults() {
+             const defaults = {
+                 enable_venv: true,
+                 venv_python_path: './venv/Scripts/',
+                 dataset_config: './ai_data/datasets/lovemf_config.toml',
+                 dit_path: './model/diffusion_models/qwen_image_bf16.safetensors',
+                 vae_path: './model/vae/qwen_image_vae.safetensors',
+                 text_encoder_path: './model/text_encoders/qwen_2.5_vl_7b.safetensors',
+                 output_dir: './output',
+                 output_name: 'lovemf_lora',
+                 mixed_precision: 'bf16',
+                 timestep_sampling: 'shift',
+                 weighting_scheme: 'none',
+                 discrete_flow_shift: 2.2,
+                 optimizer_type: 'adamw8bit',
+                 learning_rate: '5e-05',
+                 max_data_loader_n_workers: 2,
+                 train_batch_size: 1,
+                 num_repeats: 5,
+                 network_module: 'networks.lora_qwen_image',
+                 network_dim: 8,
+                 network_args: 'loraplus_lr_ratio=4',
+                 max_train_epochs: 8,
+                 save_every_n_epochs: 1,
+                 seed: 42,
+                 num_cpu_threads_per_process: 1,
+                 sdpa: true,
+                 gradient_checkpointing: true,
+                 persistent_data_loader_workers: true,
+                 fp8_base: true,
+                 fp8_scaled: true,
+                 blocks_to_swap: 20,
+                 logging_dir: './logs',
+                 log_with: 'tensorboard'
+             };
+             
+             Object.keys(defaults).forEach(key => {
+                 const element = document.getElementById(key);
+                 if (element && element.type !== 'checkbox') {
+                     // 对于learning_rate，强制设置为科学计数法格式
+                     if (key === 'learning_rate') {
+                         element.value = defaults[key];
+                     } else if (!element.value) {
+                         element.value = defaults[key];
+                     }
+                 } else if (element && element.type === 'checkbox' && element.checked === false) {
+                     element.checked = defaults[key];
+                 }
+             });
+         }
+
+         document.addEventListener('DOMContentLoaded', function() {
+             // 先设置默认值
+             initializeDefaults();
+             
+             // Learning Rate输入框事件监听器 - 自动转换为科学计数法格式
+             const learningRateInput = document.getElementById('learning_rate');
+             if (learningRateInput) {
+                 learningRateInput.addEventListener('blur', function() {
+                     const value = this.value.trim();
+                     if (value) {
+                         const numValue = parseFloat(value);
+                         if (!isNaN(numValue) && numValue === 0.00005) {
+                             this.value = '5e-05';
+                         }
+                     }
+                 });
+                 
+                 learningRateInput.addEventListener('input', function() {
+                     const value = this.value.trim();
+                     if (value === '0.00005') {
+                         this.value = '5e-05';
+                     }
+                 });
+             }
+             
+             // 虚拟环境开关事件监听
+             const enableVenvCheckbox = document.getElementById('enable_venv');
+             const venvPathGroup = document.getElementById('venv_path_group');
+             
+             function toggleVenvPath() {
+                 if (enableVenvCheckbox.checked) {
+                     venvPathGroup.style.display = 'block';
+                 } else {
+                     venvPathGroup.style.display = 'none';
+                 }
+             }
+             
+             enableVenvCheckbox.addEventListener('change', toggleVenvPath);
+             toggleVenvPath(); // 初始化显示状态
+             
+             // 页面加载完成后自动静默加载配置
+             loadConfigSilently();
+         });
+    </script>
+</body>
+</html>
