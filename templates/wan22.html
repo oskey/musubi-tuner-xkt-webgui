@@ -587,8 +587,8 @@
                     </div>
                     
                     <div class="form-group">
-                        <label title="训练批次大小。影响显存使用和训练速度。">训练批次大小 (train_batch_size)</label>
-                        <input type="number" id="train_batch_size" min="1" max="32" title="训练批次大小。影响显存使用和训练速度。">
+                        <label title="训练批次大小。影响显存使用和训练速度。">训练批次大小 (batch_size)</label>
+                        <input type="number" id="batch_size" min="1" max="32" title="训练批次大小。影响显存使用和训练速度。">
                         <small style="color: #666; display: block; margin-top: 5px;">💡 推荐值：1-4，根据显存大小调整</small>
                     </div>
                     
@@ -711,13 +711,30 @@
                         </div>
                     </div>
                     
-                    <!-- ChatGPT参数推荐按钮 -->
-                    <div style="text-align: center; margin: 15px 0;">
-                        <button onclick="calculateChatGPTRecommendedParams()" class="btn" style="background: linear-gradient(45deg, #FF6B6B, #FF8E53); color: white; padding: 12px 25px; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; box-shadow: 0 4px 8px rgba(0,0,0,0.2); transition: all 0.3s ease; font-weight: bold;" title="一键ChatGPT推荐所有训练参数">
-                            🤖 一键 ChatGPT 推荐参数
-                        </button>
+                    <!-- 智能参数推荐按钮组 -->
+                    <div style="margin: 15px 0;">
+                        <!-- 按钮行 -->
+                        <div style="display: flex; gap: 8px; justify-content: center; align-items: center; flex-wrap: wrap;">
+                            <button onclick="calculateChatGPTRecommendedParams()" class="btn" style="background: linear-gradient(45deg, #FF6B6B, #FF8E53); color: white; padding: 10px 16px; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; box-shadow: 0 4px 8px rgba(0,0,0,0.2); transition: all 0.3s ease; font-weight: bold; flex: 1; min-width: 160px; max-width: 180px;" title="一键ChatGPT推荐所有训练参数">
+                                🤖 一键 ChatGPT 推荐
+                            </button>
+                            <button onclick="calculateDoubaoRecommendedParams()" class="btn" style="background: linear-gradient(45deg, #4A90E2, #7B68EE); color: white; padding: 10px 16px; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; box-shadow: 0 4px 8px rgba(0,0,0,0.2); transition: all 0.3s ease; font-weight: bold; flex: 1; min-width: 160px; max-width: 180px;" title="一键豆包推荐所有训练参数">
+                                🧠 一键豆包推荐
+                            </button>
+                            <button onclick="calculateSoftwareRecommendedParams()" class="btn" style="background: linear-gradient(45deg, #28A745, #20C997); color: white; padding: 10px 16px; border: none; border-radius: 8px; font-size: 13px; cursor: pointer; box-shadow: 0 4px 8px rgba(0,0,0,0.2); transition: all 0.3s ease; font-weight: bold; flex: 1; min-width: 160px; max-width: 180px;" title="一键软件推荐所有训练参数">
+                                ⚙️ 一键软件推荐
+                            </button>
+                        </div>
+                        
+                        <!-- 结果显示区域 -->
                         <div id="chatgpt_params_result" style="margin-top: 8px; font-size: 12px; color: #666; line-height: 1.4; padding: 8px; background: #f8f9fa; border-radius: 6px; border-left: 4px solid #007bff; display: none;">
                             <!-- ChatGPT推荐结果将显示在这里 -->
+                        </div>
+                        <div id="doubao_params_result" style="margin-top: 8px; font-size: 12px; color: #666; line-height: 1.4; padding: 8px; background: #f8f9fa; border-radius: 6px; border-left: 4px solid #4A90E2; display: none;">
+                            <!-- 豆包推荐结果将显示在这里 -->
+                        </div>
+                        <div id="software_params_result" style="margin-top: 8px; font-size: 12px; color: #666; line-height: 1.4; padding: 8px; background: #f8f9fa; border-radius: 6px; border-left: 4px solid #28A745; display: none;">
+                            <!-- 软件推荐结果将显示在这里 -->
                         </div>
                     </div>
                     
@@ -1034,7 +1051,7 @@
                             <div style="padding: 10px; background: #ecf0f1; border-radius: 6px; border-left: 3px solid #e74c3c;">
                                 <div style="font-weight: bold; color: #2c3e50; margin-bottom: 5px;">🔢 批次大小</div>
                                 <div id="batch_size_display" style="font-size: 16px; color: #e74c3c;">--</div>
-                                <small style="color: #7f8c8d;">来源: train_batch_size 参数</small>
+                                <small style="color: #7f8c8d;">来源: batch_size 参数</small>
                             </div>
                             <div style="padding: 10px; background: #ecf0f1; border-radius: 6px; border-left: 3px solid #f39c12;">
                                 <div style="font-weight: bold; color: #2c3e50; margin-bottom: 5px;">🔄 重复次数</div>
@@ -1239,13 +1256,14 @@
                 if (file) {
                     let fullPath;
                     
+                    const fileName = file.name;
+                    
                     if (file.path) {
                         // 如果浏览器支持file.path，直接使用完整路径
                         fullPath = file.path;
                     } else {
                         // 浏览器不支持file.path时，根据文件类型构建默认路径
                         const currentDir = 'C:\\Users\\oskey\\ai\\musubi-tuner';
-                        const fileName = file.name;
                         
                         if (fileExtension === '.toml') {
                             fullPath = currentDir + '\\ai_data\\datasets\\' + fileName;
@@ -1275,6 +1293,13 @@
                     if (inputId === 'dataset_config' && fileExtension === '.toml') {
                         readBatchSizeFromToml(fullPath);
                         readNumRepeatsFromToml(fullPath);
+                        
+                        // 自动提取文件名并设置到output_name
+                        const fileNameWithoutExt = fileName.replace(/\.toml$/i, '');
+                        const outputNameElement = document.getElementById('output_name');
+                        if (outputNameElement) {
+                            outputNameElement.value = fileNameWithoutExt;
+                        }
                     }
                 }
             };
@@ -1292,7 +1317,7 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success && data.batch_size !== null) {
-                    document.getElementById('train_batch_size').value = data.batch_size;
+                    document.getElementById('batch_size').value = data.batch_size;
                     addLogEntry({
                         level: 'info',
                         message: `已从 ${tomlPath} 读取 batch_size: ${data.batch_size}`,
@@ -1390,7 +1415,7 @@
                 resume_training: false,
                 resume: '',
                 seed: 42,
-                train_batch_size: 1,
+                batch_size: 1,
                 num_repeats: 1,
                 
                 // 数据加载
@@ -1503,6 +1528,21 @@
                 if (data.success && data.filename) {
                     // 将选择的文件路径填入输入框
                     document.getElementById(inputId).value = data.filename;
+                    
+                    // 如果是数据集配置文件，自动设置输出模型名称
+                    if (inputId === 'dataset_config' && data.filename.toLowerCase().endsWith('.toml')) {
+                        // 处理Windows和Unix路径分隔符，获取纯文件名
+                        const fileName = data.filename.split(/[\\\/]/).pop(); // 获取文件名
+                        const fileNameWithoutExt = fileName.replace(/\.toml$/i, '');
+                        const outputNameElement = document.getElementById('output_name');
+                        if (outputNameElement) {
+                            outputNameElement.value = fileNameWithoutExt;
+                        }
+                        
+                        // 自动读取batch_size和num_repeats
+                        readBatchSizeFromToml(data.filename);
+                        readNumRepeatsFromToml(data.filename);
+                    }
                     
                     addLogEntry({
                         level: 'info',
@@ -1658,12 +1698,17 @@
                 // 训练控制
                 max_train_epochs: safeGetIntValue('max_train_epochs', 16),
                 save_every_n_epochs: safeGetIntValue('save_every_n_epochs', 1),
+                // 训练状态相关参数（参与训练但不参与配置保存/加载/重置）
                 save_state: safeGetValue('save_state', false, true),
                 resume_training: safeGetValue('resume_training', false, true),
                 resume: safeGetValue('resume', ''),
                 seed: safeGetIntValue('seed', 42),
-                train_batch_size: safeGetIntValue('train_batch_size', 1),
-            num_repeats: safeGetIntValue('num_repeats', 1),
+                batch_size: safeGetIntValue('batch_size', 1),
+                num_repeats: safeGetIntValue('num_repeats', 1),
+                
+                // 视频训练参数
+                is_video_training: safeGetValue('video_training_checkbox', false, true),
+                video_duration: safeGetIntValue('video_duration', 300),
                 
                 // 数据加载
                 max_data_loader_n_workers: safeGetIntValue('max_data_loader_n_workers', 2),
@@ -2166,8 +2211,14 @@
                         selectTaskType(config.task);
                     }
                     
-                    // 填充表单
+                    // 填充表单（跳过训练状态相关参数）
+                    const skipParams = ['save_state', 'resume_training', 'resume'];
                     Object.keys(config).forEach(key => {
+                        // 跳过训练状态相关参数，不参与配置加载
+                        if (skipParams.includes(key)) {
+                            return;
+                        }
+                        
                         const element = document.getElementById(key);
                         if (element) {
                             if (element.type === 'checkbox') {
@@ -2235,8 +2286,14 @@
                         // 使用返回的配置更新界面
                         const config = data.config;
                         
-                        // 更新所有表单字段
+                        // 更新所有表单字段（跳过训练状态相关参数）
+                        const skipParams = ['save_state', 'resume_training', 'resume'];
                         Object.keys(config).forEach(key => {
+                            // 跳过训练状态相关参数，不参与配置重置
+                            if (skipParams.includes(key)) {
+                                return;
+                            }
+                            
                             const element = document.getElementById(key);
                             if (element) {
                                 if (element.type === 'checkbox') {
@@ -2283,12 +2340,18 @@
         function estimateTrainingTime() {
             // 获取训练参数
             const datasetConfig = document.getElementById('dataset_config').value;
-            const trainBatchSize = parseInt(document.getElementById('train_batch_size').value) || 1;
+            const trainBatchSize = parseInt(document.getElementById('batch_size').value) || 1;
             const numRepeats = parseInt(document.getElementById('num_repeats').value) || 1;
             const maxTrainEpochs = parseInt(document.getElementById('max_train_epochs').value) || 1;
             const saveEveryNEpochs = parseInt(document.getElementById('save_every_n_epochs').value) || 1;
             const outputName = document.getElementById('output_name').value || 'wan22-lora';
             const avgStepTime = parseFloat(document.getElementById('avg_step_time').value) || 2.92;
+            
+            // 获取视频训练相关参数
+            const isVideoTraining = document.getElementById('video_training_checkbox') ? 
+                document.getElementById('video_training_checkbox').checked : false;
+            const videoDuration = isVideoTraining && document.getElementById('video_duration') ? 
+                parseInt(document.getElementById('video_duration').value) || 5 : 0;
             
             if (!datasetConfig) {
                 addLogEntry({
@@ -2318,12 +2381,14 @@
                 },
                 body: JSON.stringify({
                     dataset_config: datasetConfig,
-                    train_batch_size: trainBatchSize,
+                    batch_size: trainBatchSize,
                     num_repeats: numRepeats,
                     max_train_epochs: maxTrainEpochs,
                     save_every_n_epochs: saveEveryNEpochs,
                     output_name: outputName,
-                    avg_step_time: avgStepTime
+                    avg_step_time: avgStepTime,
+                    is_video_training: isVideoTraining,
+                    video_duration: videoDuration
                 })
             })
             .then(response => response.json())
@@ -2359,9 +2424,15 @@
                     document.getElementById('step_time_display').textContent = `${avgStepTime} 秒`;
                     
                     // 更新计算公式显示
-                    const stepsPerEpoch = Math.ceil((data.dataset_files * numRepeats) / trainBatchSize);
-                    document.getElementById('total_steps_calculation').textContent = 
-                        `总步数 = (${data.dataset_files} × ${numRepeats} ÷ ${trainBatchSize}) × ${maxTrainEpochs} = ${data.total_steps} 步`;
+                    let calculationText;
+                    if (isVideoTraining && data.video_segments) {
+                        // 视频训练模式：显示片段计算逻辑
+                        calculationText = `总步数 = ${data.video_segments} 个视频片段 ÷ ${trainBatchSize} × ${maxTrainEpochs} = ${data.total_steps} 步`;
+                    } else {
+                        // 图片训练模式：使用原有逻辑
+                        calculationText = `总步数 = (${data.dataset_files} × ${numRepeats} ÷ ${trainBatchSize}) × ${maxTrainEpochs} = ${data.total_steps} 步`;
+                    }
+                    document.getElementById('total_steps_calculation').textContent = calculationText;
                     
                     document.getElementById('time_calculation').textContent = 
                         `预估时间 = ${data.total_steps} × ${avgStepTime} = ${totalSeconds.toFixed(1)} 秒 (${formattedTime})`;
@@ -2423,7 +2494,7 @@
             const isVideoTraining = videoTrainingCheckbox ? videoTrainingCheckbox.checked : false;
             const videoDurationInput = document.getElementById('video_duration');
             const videoDuration = videoDurationInput ? (parseFloat(videoDurationInput.value) || 5) : 5;
-            const batchSizeInput = document.getElementById('train_batch_size');
+            const batchSizeInput = document.getElementById('batch_size');
             const batchSize = batchSizeInput ? (parseInt(batchSizeInput.value) || 1) : 1;
             
             console.log('setRecommendedNumRepeats - datasetConfig:', datasetConfig);
@@ -2499,7 +2570,7 @@
         function calculateRecommendedLearningRate() {
             // 获取必要的参数
             const datasetConfig = document.getElementById('dataset_config').value;
-            const trainBatchSize = parseInt(document.getElementById('train_batch_size').value) || 1;
+            const trainBatchSize = parseInt(document.getElementById('batch_size').value) || 1;
             const optimizerType = document.getElementById('optimizer_type').value || 'adamw8bit';
             
             if (!datasetConfig) {
@@ -2533,7 +2604,7 @@
                 },
                 body: JSON.stringify({
                     dataset_config: datasetConfig,
-                    train_batch_size: trainBatchSize,
+                    batch_size: trainBatchSize,
                     optimizer_type: optimizerType,
                     task_type: currentTaskType,
                     is_video_training: isVideoTraining,
@@ -2614,11 +2685,11 @@
             
             // 检查是否为视频训练
             const isVideoTraining = document.getElementById('video_training_checkbox') ? 
-                document.getElementById('video_training_checkbox').checked : true;
+                document.getElementById('video_training_checkbox').checked : false;
             
-            // 获取视频时长（如果是视频训练）
+            // 获取视频时长（只有在视频训练模式下才获取）
             const videoDuration = isVideoTraining && document.getElementById('video_duration') ? 
-                parseInt(document.getElementById('video_duration').value) || 5 : 5;
+                parseInt(document.getElementById('video_duration').value) || 5 : 0;
             
             // 获取优化器类型
             const optimizer = document.getElementById('optimizer_type') ? 
@@ -2866,7 +2937,7 @@
         
         function calculateRecommendedEpochs() {
             const datasetConfig = document.getElementById('dataset_config').value;
-            const trainBatchSize = parseInt(document.getElementById('train_batch_size').value) || 1;
+            const trainBatchSize = parseInt(document.getElementById('batch_size').value) || 1;
             const isVideoTraining = document.getElementById('video_training_checkbox') ? 
                 document.getElementById('video_training_checkbox').checked : false;
             const videoDuration = parseFloat(document.getElementById('video_duration').value) || 5;
@@ -2887,7 +2958,7 @@
                 },
                 body: JSON.stringify({
                     dataset_config: datasetConfig,
-                    train_batch_size: trainBatchSize,
+                    batch_size: trainBatchSize,
                     task_type: currentTaskType,
                     is_video_training: isVideoTraining,
                     video_duration: videoDuration
@@ -2945,8 +3016,8 @@
                 parseInt(document.getElementById('video_duration').value) || 5 : 5;
             
             // 获取批次大小
-            const batchSize = document.getElementById('train_batch_size') ? 
-                parseInt(document.getElementById('train_batch_size').value) || 1 : 1;
+            const batchSize = document.getElementById('batch_size') ?
+                parseInt(document.getElementById('batch_size').value) || 1 : 1;
             
             // 显示计算中状态
             const resultDiv = document.getElementById('chatgpt_params_result');
@@ -2965,7 +3036,8 @@
                     dataset_config: datasetConfig,
                     task_type: currentTaskType,
                     is_video_training: isVideoTraining,
-                    video_duration: videoDuration
+                    video_duration: videoDuration,
+                    batch_size: batchSize
                 })
             })
             .then(response => response.json())
@@ -3006,7 +3078,8 @@
                                 • 学习率: ${data.learning_rate || 'N/A'}<br>
                                 • LoRA维度: ${data.network_dim || 'N/A'}<br>
                                 • 网络Alpha: ${data.network_alpha || 'N/A'}<br>
-                                • 最大训练轮数: ${data.max_train_epochs || 'N/A'}
+                                • 最大训练轮数: ${data.max_train_epochs || 'N/A'}<br>
+                                • 批次大小: ${data.batch_size || 'N/A'}
                             </div>
                             <div style="font-size: 11px; color: #666;">
                                 🧮 <strong>ChatGPT计算公式:</strong><br>
@@ -3052,6 +3125,338 @@
                 addLogEntry({
                     level: 'error',
                     message: '❌ ChatGPT参数推荐失败: ' + error.message,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            });
+        }
+        
+        function calculateDoubaoRecommendedParams() {
+            const datasetConfig = document.getElementById('dataset_config').value;
+            
+            if (!datasetConfig) {
+                addLogEntry({
+                    level: 'warning',
+                    message: '请先选择数据集配置文件',
+                    timestamp: new Date().toLocaleTimeString()
+                });
+                return;
+            }
+            
+            // 检查是否为视频训练
+            const isVideoTraining = document.getElementById('video_training_checkbox') ? 
+                document.getElementById('video_training_checkbox').checked : true;
+            
+            // 获取视频时长（如果是视频训练）
+            const videoDuration = isVideoTraining && document.getElementById('video_duration') ? 
+                parseInt(document.getElementById('video_duration').value) || 5 : 5;
+            
+            // 获取批次大小
+            const batchSize = document.getElementById('batch_size') ?
+                parseInt(document.getElementById('batch_size').value) || 1 : 1;
+            
+            // 显示计算中状态
+            const resultDiv = document.getElementById('doubao_params_result');
+            if (resultDiv) {
+                resultDiv.innerHTML = '🧠 豆包正在计算推荐参数...';
+                resultDiv.style.display = 'block';
+                resultDiv.style.color = '#ffc107';
+            }
+            
+            fetch('/api/calculate_doubao_recommended_params', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    dataset_config: datasetConfig,
+                    task_type: currentTaskType,
+                    is_video_training: isVideoTraining,
+                    video_duration: videoDuration,
+                    batch_size: batchSize
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 自动填入所有推荐的参数值
+                    if (data.recommended_params.num_repeats && document.getElementById('num_repeats')) {
+                        document.getElementById('num_repeats').value = data.recommended_params.num_repeats;
+                    }
+                    if (data.recommended_params.learning_rate && document.getElementById('learning_rate')) {
+                        document.getElementById('learning_rate').value = data.recommended_params.learning_rate;
+                    }
+                    if (data.recommended_params.network_dim && document.getElementById('network_dim')) {
+                        document.getElementById('network_dim').value = data.recommended_params.network_dim;
+                    }
+                    if (data.recommended_params.network_alpha && document.getElementById('network_alpha')) {
+                        document.getElementById('network_alpha').value = data.recommended_params.network_alpha;
+                    }
+                    if (data.recommended_params.max_train_epochs && document.getElementById('max_train_epochs')) {
+                        document.getElementById('max_train_epochs').value = data.recommended_params.max_train_epochs;
+                    }
+                    if (data.recommended_params.batch_size && document.getElementById('batch_size')) {
+                        document.getElementById('batch_size').value = data.recommended_params.batch_size;
+                    }
+                    
+                    // 显示推荐结果
+                    if (resultDiv) {
+                        resultDiv.innerHTML = `
+                            <div style="font-weight: bold; margin-bottom: 8px;">🧠 豆包智能推荐完成</div>
+                            <div style="margin-bottom: 8px; padding: 6px; background: #e8f4fd; border-radius: 4px;">
+                                📊 <strong>推荐参数:</strong><br>
+                                • 学习率: ${data.recommended_params.learning_rate || 'N/A'}<br>
+                                • LoRA维度: ${data.recommended_params.network_dim || 'N/A'}<br>
+                                • LoRA Alpha: ${data.recommended_params.network_alpha || 'N/A'}<br>
+                                • 训练轮数: ${data.recommended_params.max_train_epochs || 'N/A'}<br>
+                                • 重复次数: ${data.recommended_params.num_repeats || 'N/A'}<br>
+                                • 批次大小: ${data.recommended_params.batch_size || 'N/A'}
+                            </div>
+                            <div style="font-size: 11px; color: #666; white-space: pre-line;">
+                                ${data.reasoning || '豆包数学建模算法推荐'}
+                            </div>
+                        `;
+                        resultDiv.style.color = '#4A90E2';
+                    }
+                    
+                    addLogEntry({
+                        level: 'success',
+                        message: `🧠 豆包参数推荐完成! 已自动填入所有推荐参数`,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                } else {
+                    if (resultDiv) {
+                        resultDiv.innerHTML = '❌ 豆包参数推荐失败: ' + data.message;
+                        resultDiv.style.color = '#dc3545';
+                    }
+                    addLogEntry({
+                        level: 'error',
+                        message: '❌ 豆包参数推荐失败: ' + data.message,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                }
+            })
+            .catch(error => {
+                if (resultDiv) {
+                    resultDiv.innerHTML = '❌ 网络错误: ' + error.message;
+                    resultDiv.style.color = '#dc3545';
+                }
+                addLogEntry({
+                    level: 'error',
+                    message: '❌ 豆包参数推荐失败: ' + error.message,
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            });
+        }
+        
+        function calculateSoftwareRecommendedParams() {
+            const datasetConfig = document.getElementById('dataset_config').value;
+            
+            if (!datasetConfig) {
+                addLogEntry({
+                    level: 'warning',
+                    message: '请先选择数据集配置文件',
+                    timestamp: new Date().toLocaleTimeString()
+                });
+                return;
+            }
+            
+            // 弹窗选择LoRA类型
+            const loraTypeModal = document.createElement('div');
+            loraTypeModal.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.5);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 10000;
+            `;
+            
+            const modalContent = document.createElement('div');
+            modalContent.style.cssText = `
+                background: white;
+                padding: 30px;
+                border-radius: 12px;
+                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+                text-align: center;
+                max-width: 400px;
+                width: 90%;
+            `;
+            
+            modalContent.innerHTML = `
+                <h3 style="margin: 0 0 20px 0; color: #333; font-size: 18px;">⚙️ 选择LoRA训练类型</h3>
+                <p style="margin: 0 0 25px 0; color: #666; line-height: 1.5;">请选择您要训练的LoRA类型，软件将根据不同类型提供专门优化的参数：</p>
+                <div style="display: flex; gap: 15px; justify-content: center;">
+                    <button id="realistic-btn" style="
+                        background: linear-gradient(45deg, #FF6B6B, #FF8E53);
+                        color: white;
+                        border: none;
+                        padding: 12px 20px;
+                        border-radius: 8px;
+                        cursor: pointer;
+                        font-size: 14px;
+                        font-weight: bold;
+                        transition: all 0.3s ease;
+                        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+                    ">📸 写实风格</button>
+                    <button id="anime-btn" style="
+                        background: linear-gradient(45deg, #4A90E2, #7B68EE);
+                        color: white;
+                        border: none;
+                        padding: 12px 20px;
+                        border-radius: 8px;
+                        cursor: pointer;
+                        font-size: 14px;
+                        font-weight: bold;
+                        transition: all 0.3s ease;
+                        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+                    ">🎨 动漫风格</button>
+                </div>
+                <button id="cancel-btn" style="
+                    background: #6c757d;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    font-size: 12px;
+                    margin-top: 15px;
+                ">取消</button>
+            `;
+            
+            loraTypeModal.appendChild(modalContent);
+            document.body.appendChild(loraTypeModal);
+            
+            // 添加按钮事件
+            document.getElementById('realistic-btn').onclick = () => {
+                document.body.removeChild(loraTypeModal);
+                performSoftwareRecommendation('realistic');
+            };
+            
+            document.getElementById('anime-btn').onclick = () => {
+                document.body.removeChild(loraTypeModal);
+                performSoftwareRecommendation('anime');
+            };
+            
+            document.getElementById('cancel-btn').onclick = () => {
+                document.body.removeChild(loraTypeModal);
+            };
+            
+            // 点击背景关闭
+            loraTypeModal.onclick = (e) => {
+                if (e.target === loraTypeModal) {
+                    document.body.removeChild(loraTypeModal);
+                }
+            };
+        }
+        
+        function performSoftwareRecommendation(loraType) {
+            const datasetConfig = document.getElementById('dataset_config').value;
+            
+            // 检查是否为视频训练
+            const isVideoTraining = document.getElementById('video_training_checkbox') ? 
+                document.getElementById('video_training_checkbox').checked : false;
+            
+            // 获取视频时长（如果是视频训练）
+            const videoDuration = isVideoTraining && document.getElementById('video_duration') ? 
+                parseInt(document.getElementById('video_duration').value) || 0 : 0;
+            
+            // 获取批次大小
+            const batchSize = document.getElementById('batch_size') ?
+                parseInt(document.getElementById('batch_size').value) || 1 : 1;
+            
+            // 显示计算中状态
+            const resultDiv = document.getElementById('software_params_result');
+            if (resultDiv) {
+                const loraTypeName = loraType === 'realistic' ? '写实风格' : '动漫风格';
+                resultDiv.innerHTML = `⚙️ 软件正在为${loraTypeName}计算推荐参数...`;
+                resultDiv.style.display = 'block';
+                resultDiv.style.color = '#ffc107';
+            }
+            
+            fetch('/api/calculate_software_recommended_params', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    dataset_config: datasetConfig,
+                    task_type: currentTaskType,
+                    is_video_training: isVideoTraining,
+                    video_duration: videoDuration,
+                    batch_size: batchSize,
+                    lora_type: loraType
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 自动填入所有推荐的参数值
+                    if (data.recommended_params.num_repeats && document.getElementById('num_repeats')) {
+                        document.getElementById('num_repeats').value = data.recommended_params.num_repeats;
+                    }
+                    if (data.recommended_params.learning_rate && document.getElementById('learning_rate')) {
+                        document.getElementById('learning_rate').value = data.recommended_params.learning_rate;
+                    }
+                    if (data.recommended_params.network_dim && document.getElementById('network_dim')) {
+                        document.getElementById('network_dim').value = data.recommended_params.network_dim;
+                    }
+                    if (data.recommended_params.network_alpha && document.getElementById('network_alpha')) {
+                        document.getElementById('network_alpha').value = data.recommended_params.network_alpha;
+                    }
+                    if (data.recommended_params.max_train_epochs && document.getElementById('max_train_epochs')) {
+                        document.getElementById('max_train_epochs').value = data.recommended_params.max_train_epochs;
+                    }
+                    
+                    // 显示推荐结果
+                    if (resultDiv) {
+                        const loraTypeName = loraType === 'realistic' ? '写实风格' : '动漫风格';
+                        resultDiv.innerHTML = `
+                            <div style="font-weight: bold; margin-bottom: 8px;">⚙️ 软件智能推荐完成 (${loraTypeName})</div>
+                            <div style="margin-bottom: 8px; padding: 6px; background: #e8f5e8; border-radius: 4px;">
+                                📊 <strong>推荐参数:</strong><br>
+                                • 学习率: ${data.recommended_params.learning_rate || 'N/A'}<br>
+                                • LoRA维度: ${data.recommended_params.network_dim || 'N/A'}<br>
+                                • LoRA Alpha: ${data.recommended_params.network_alpha || 'N/A'}<br>
+                                • 训练轮数: ${data.recommended_params.max_train_epochs || 'N/A'}<br>
+                                • 重复次数: ${data.recommended_params.num_repeats || 'N/A'}
+                            </div>
+                            <div style="font-size: 11px; color: #666; white-space: pre-line;">
+                                ${data.reasoning || '软件专业参数推荐'}
+                            </div>
+                        `;
+                        resultDiv.style.color = '#28A745';
+                    }
+                    
+                    const loraTypeName = loraType === 'realistic' ? '写实风格' : '动漫风格';
+                    addLogEntry({
+                        level: 'success',
+                        message: `⚙️ 软件参数推荐完成(${loraTypeName})! 已自动填入所有推荐参数`,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                } else {
+                    if (resultDiv) {
+                        resultDiv.innerHTML = '❌ 软件参数推荐失败: ' + data.message;
+                        resultDiv.style.color = '#dc3545';
+                    }
+                    addLogEntry({
+                        level: 'error',
+                        message: '❌ 软件参数推荐失败: ' + data.message,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                }
+            })
+            .catch(error => {
+                if (resultDiv) {
+                    resultDiv.innerHTML = '❌ 网络错误: ' + error.message;
+                    resultDiv.style.color = '#dc3545';
+                }
+                addLogEntry({
+                    level: 'error',
+                    message: '❌ 软件参数推荐失败: ' + error.message,
                     timestamp: new Date().toLocaleTimeString()
                 });
             });
@@ -3367,7 +3772,7 @@
             const isVideoTraining = videoTrainingCheckbox ? videoTrainingCheckbox.checked : false;
             const videoDurationInput = document.getElementById('video_duration');
             const videoDuration = videoDurationInput ? (parseFloat(videoDurationInput.value) || 5) : 5;
-            const batchSizeInput = document.getElementById('train_batch_size');
+            const batchSizeInput = document.getElementById('batch_size');
             const batchSize = batchSizeInput ? (parseInt(batchSizeInput.value) || 8) : 8;
             const epochsInput = document.getElementById('max_train_epochs');
             const epochs = epochsInput ? (parseInt(epochsInput.value) || 10) : 10;

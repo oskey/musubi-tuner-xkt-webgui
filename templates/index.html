@@ -397,8 +397,8 @@
                     
                         <!-- 核心参数：训练批次大小 -->
                         <div class="form-group">
-                            <label title="训练批次大小 - 从TOML配置文件读取。">训练批次大小 (train_batch_size)</label>
-                            <input type="number" id="train_batch_size" min="1" max="32" title="训练批次大小 - 从TOML配置文件读取。">
+                            <label title="训练批次大小 - 从TOML配置文件读取。">训练批次大小 (batch_size)</label>
+                            <input type="number" id="batch_size" min="1" max="32" title="训练批次大小 - 从TOML配置文件读取。">
                             <small style="color: #666; display: block; margin-top: 5px;">💡 从TOML文件的[general]部分读取，影响显存使用和训练速度</small>
                         </div>
                         
@@ -742,7 +742,7 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success && data.batch_size !== null) {
-                    document.getElementById('train_batch_size').value = data.batch_size;
+                    document.getElementById('batch_size').value = data.batch_size;
                     addLogEntry({
                         level: 'info',
                         message: `已从 ${tomlPath} 读取 batch_size: ${data.batch_size}`,
@@ -837,7 +837,7 @@
                     }
                     return value;
                 })(),
-                train_batch_size: safeGetIntValue('train_batch_size', 1),
+                batch_size: safeGetIntValue('batch_size', 1),
                 num_repeats: safeGetIntValue('num_repeats', 5),
                 gradient_accumulation_steps: safeGetIntValue('gradient_accumulation_steps', 1),
                 mixed_precision: safeGetValue('mixed_precision', 'bf16'),
@@ -1349,7 +1349,7 @@
                  optimizer_type: 'adamw8bit',
                  learning_rate: '5e-05',
                  max_data_loader_n_workers: 2,
-                 train_batch_size: 1,
+                 batch_size: 1,
                  num_repeats: 5,
                  network_module: 'networks.lora_qwen_image',
                  network_dim: 8,

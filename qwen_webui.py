@@ -100,7 +100,7 @@ PARAM_DESCRIPTIONS = {
         'range': [0, 8],
         'default': 2
     },
-    'train_batch_size': {
+    'batch_size': {
         'description': '训练批次大小',
         'suggestion': '从TOML配置文件的[general]部分读取，影响显存使用和训练速度',
         'range': [1, 32],
@@ -247,7 +247,7 @@ DEFAULT_CONFIG = {
     'optimizer_type': 'adamw8bit',  # 优化器类型，建议值：adamw8bit (节省显存)
     'learning_rate': 5e-05,  # 学习率，推荐值：5e-05
     'max_data_loader_n_workers': 2,  # 数据加载器工作进程数，建议值：2
-    'train_batch_size': 1,  # 训练批次大小，从TOML文件读取
+    'batch_size': 1,  # 训练批次大小，从TOML文件读取
     'num_repeats': 5,  # 数据重复次数，从TOML文件读取
     'network_module': 'networks.lora_qwen_image',  # 网络模块，固定值
     'network_dim': 8,  # LoRA维度，推荐值：8
@@ -478,7 +478,7 @@ def cache_text_encoder_outputs(config):
         'python', 'src/musubi_tuner/qwen_image_cache_text_encoder_outputs.py',
         '--dataset_config', config['dataset_config'],
         '--text_encoder', config['text_encoder_path'],
-        '--batch_size', str(config.get('train_batch_size', 1))
+        '--batch_size', str(config.get('batch_size', 1))
     ]
     return run_command(cmd, "预缓存文本编码器输出", config)
 
@@ -712,7 +712,7 @@ def api_save_config():
             json.dump(config, f, indent=2, ensure_ascii=False)
         
         # 保存批次大小和重复次数到TOML文件
-        if 'dataset_config' in config and ('train_batch_size' in config or 'num_repeats' in config):
+        if 'dataset_config' in config and ('batch_size' in config or 'num_repeats' in config):
             # 使用用户指定的数据集配置文件路径
             toml_file = Path(config['dataset_config'])
             toml_content = ""
@@ -726,9 +726,9 @@ def api_save_config():
             updated_params = []
             
             # 处理batch_size
-            if 'train_batch_size' in config:
+            if 'batch_size' in config:
                 batch_size_pattern = r'batch_size\s*=\s*\d+'
-                new_batch_size = f"batch_size = {config['train_batch_size']}"
+                new_batch_size = f"batch_size = {config['batch_size']}"
                 
                 if '[general]' in toml_content:
                     if re.search(batch_size_pattern, toml_content):
@@ -739,7 +739,7 @@ def api_save_config():
                     if toml_content and not toml_content.endswith('\n'):
                         toml_content += '\n'
                     toml_content += f"\n[general]\n{new_batch_size}\n"
-                updated_params.append(f"batch_size={config['train_batch_size']}")
+                updated_params.append(f"batch_size={config['batch_size']}")
             
             # 处理num_repeats - 保存到[[datasets]]部分
             if 'num_repeats' in config:
@@ -838,8 +838,8 @@ def api_load_config():
                 
                 # 从TOML文件中读取batch_size（从[general]部分）
                 if 'general' in toml_config and 'batch_size' in toml_config['general']:
-                    config['train_batch_size'] = toml_config['general']['batch_size']
-                    log_message(f"从 {dataset_config_path} 读取 batch_size: {config['train_batch_size']}", 'info')
+                    config['batch_size'] = toml_config['general']['batch_size']
+                    log_message(f"从 {dataset_config_path} 读取 batch_size: {config['batch_size']}", 'info')
                 
                 # 从TOML文件中读取num_repeats（先检查[general]，再检查[[datasets]]）
                 if 'general' in toml_config and 'num_repeats' in toml_config['general']:

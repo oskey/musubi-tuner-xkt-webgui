@@ -22,6 +22,57 @@ from flask import Flask, render_template, request, jsonify, send_from_directory
 from flask_socketio import SocketIO, emit
 import psutil
 
+def recommend_wan22_lora_params(num_files, total_video_seconds, task_type, batch_size):
+    """豆包推荐算法：使用数学建模方法计算最优训练参数"""
+    import math
+    
+    # 基础参数设定
+    base_lr = 2e-4
+    base_dim = 32
+    base_epochs = 16
+    base_repeats = 1
+    
+    # 数据复杂度因子计算
+    data_complexity = math.log(num_files + 1) / math.log(100)  # 归一化到[0,1]
+    
+    # 视频时长影响因子
+    duration_factor = min(total_video_seconds / 300, 2.0)  # 5分钟为基准，最大2倍
+    
+    # 任务类型影响因子
+    task_factor = 1.2 if task_type == 'i2v' else 1.0  # i2v任务更复杂
+    
+    # 批次大小影响因子
+    batch_factor = math.sqrt(batch_size) / math.sqrt(4)  # 批次4为基准
+    
+    # 学习率计算：基于数据量和复杂度动态调整
+    learning_rate = base_lr * (1 - 0.3 * data_complexity) * (1 + 0.2 * duration_factor) / batch_factor
+    learning_rate = max(1e-5, min(5e-4, learning_rate))  # 限制范围
+    
+    # LoRA维度计算：基于数据复杂度和任务类型
+    network_dim = int(base_dim * (1 + 0.5 * data_complexity) * task_factor)
+    network_dim = max(16, min(128, network_dim))  # 限制范围
+    
+    # LoRA Alpha：通常等于维度
+    network_alpha = network_dim
+    
+    # 训练轮数计算：基于数据量反比调整
+    max_train_epochs = int(base_epochs * (1 + 0.5 / (data_complexity + 0.1)))
+    max_train_epochs = max(8, min(32, max_train_epochs))  # 限制范围
+    
+    # 重复次数计算：小数据集需要更多重复
+    num_repeats = int(base_repeats * (2 - data_complexity) * duration_factor)
+    num_repeats = max(1, min(8, num_repeats))  # 限制范围
+    
+    return {
+        'learning_rate': f"{learning_rate:.1e}",
+        'network_dim': network_dim,
+        'network_alpha': network_alpha,
+        'max_train_epochs': max_train_epochs,
+        'num_repeats': num_repeats,
+        'batch_size': batch_size
+    }
+
+
 def wan22_lora_params(num_files, total_video_seconds, avg_video_len, mode, batch_size):
     """
     Wan2.2 LoRA参数推荐算法（batch_size自由输入版本）
@@ -36,12 +87,8 @@ def wan22_lora_params(num_files, total_video_seconds, avg_video_len, mode, batch
     返回: 包含所有推荐参数的字典
     """
     # 1. 计算有效样本数
-    if total_video_seconds > 0:
-        # 视频训练：每5秒算1个有效样本
-        N_eff = max(num_files, int(total_video_seconds / 5))
-    else:
-        # 图片训练：文件数即为有效样本数
-        N_eff = num_files
+    # 有效样本数就是txt文件数量（每个txt对应一个训练样本）
+    N_eff = num_files
     
     # 2. 数据重复次数
     if N_eff <= 50:
@@ -112,6 +159,163 @@ def wan22_lora_params(num_files, total_video_seconds, avg_video_len, mode, batch
         "N_eff": N_eff,
         "batch_size": batch_size
     }
+
+
+def recommend_software_lora_params(num_files, total_video_seconds, lora_type, task_type, batch_size):
+    """
+    软件推荐算法：基于写实/动漫类型和数据量推荐最优参数
+    
+    参数:
+    - num_files: 数据集文件数量
+    - total_video_seconds: 总视频秒数（视频训练时使用）
+    - lora_type: LoRA类型 ('realistic' 写实 或 'anime' 动漫)
+    - task_type: 任务类型 ('t2v' 或 'i2v')
+    - batch_size: 批次大小
+    
+    返回: 包含推荐参数的字典
+    """
+    import math
+    
+    # 判断是否为视频训练
+    is_video_training = total_video_seconds > 0
+    
+    # 确定数据量级别
+    data_count = num_files
+    if is_video_training:
+        # 视频训练时，将视频总时长换算成等效图片数
+        # 假设抽帧率为4fps（每秒取4帧）
+        fps_sample = 4
+        equivalent_frames = int(total_video_seconds * fps_sample)
+        data_count = equivalent_frames  # 使用等效帧数作为数据量
+    
+    # 根据LoRA类型和数据量确定参数
+    if lora_type == 'realistic':  # 写实类型
+        if is_video_training:
+            # 写实视频训练 - 按等效图片数推荐
+            if data_count <= 1200:  # ≤1200帧（相当于≤60图）
+                num_repeats = 5
+                learning_rate = 2.5e-4
+                network_dim = 64
+                network_alpha = 32
+                max_train_epochs = 25  # 20-30范围取中值
+            elif data_count <= 3000:  # 1200-3000帧（相当于≤100图）
+                num_repeats = 3
+                learning_rate = 3e-4
+                network_dim = 64
+                network_alpha = 64
+                max_train_epochs = 20
+            else:  # >3000帧
+                num_repeats = 2  # 1-2范围取2
+                learning_rate = 3e-4
+                network_dim = 48  # 32-64范围取中值
+                network_alpha = 48  # 32-64范围取中值
+                max_train_epochs = 15  # 10-20范围取中值
+        else:
+            # 写实图片训练
+            if data_count <= 20:
+                num_repeats = 10
+                learning_rate = 2.5e-4
+                network_dim = 64
+                network_alpha = 32
+                max_train_epochs = 35
+            elif data_count <= 60:
+                num_repeats = 5
+                learning_rate = 2.5e-4
+                network_dim = 64
+                network_alpha = 48
+                max_train_epochs = 30
+            elif data_count <= 100:
+                num_repeats = 3
+                learning_rate = 3e-4
+                network_dim = 64
+                network_alpha = 64
+                max_train_epochs = 25
+            elif data_count <= 500:
+                num_repeats = 2
+                learning_rate = 3e-4
+                network_dim = 48
+                network_alpha = 48
+                max_train_epochs = 20
+            else:  # >= 500
+                num_repeats = 1
+                learning_rate = 3e-4
+                network_dim = 32
+                network_alpha = 32
+                max_train_epochs = 12
+    
+    else:  # 动漫类型
+        if is_video_training:
+            # 动漫视频训练 - 按等效图片数推荐
+            if data_count <= 1200:  # ≤1200帧
+                num_repeats = 8
+                learning_rate = 3e-4
+                network_dim = 32
+                network_alpha = 32
+                max_train_epochs = 28  # 25-30范围取中值
+            elif data_count <= 3000:  # 1200-3000帧
+                num_repeats = 5
+                learning_rate = 3e-4
+                network_dim = 32
+                network_alpha = 32
+                max_train_epochs = 23  # 20-25范围取中值
+            else:  # >3000帧
+                num_repeats = 2  # 1-2范围取2
+                learning_rate = 3e-4
+                network_dim = 24  # 16-32范围取中值
+                network_alpha = 24  # alpha=dim
+                max_train_epochs = 13  # 10-15范围取中值
+        else:
+            # 动漫图片训练
+            if data_count <= 20:
+                num_repeats = 15
+                learning_rate = 3e-4
+                network_dim = 24
+                network_alpha = 24
+                max_train_epochs = 35
+            elif data_count <= 60:
+                num_repeats = 8
+                learning_rate = 3e-4
+                network_dim = 32
+                network_alpha = 32
+                max_train_epochs = 30
+            elif data_count <= 100:
+                num_repeats = 5
+                learning_rate = 3e-4
+                network_dim = 32
+                network_alpha = 32
+                max_train_epochs = 25
+            elif data_count <= 500:
+                num_repeats = 2
+                learning_rate = 3.5e-4
+                network_dim = 32
+                network_alpha = 32
+                max_train_epochs = 17
+            else:  # >= 500
+                num_repeats = 1
+                learning_rate = 3.5e-4
+                network_dim = 24
+                network_alpha = 24
+                max_train_epochs = 12
+    
+    # 限制参数范围
+    learning_rate = max(1e-5, min(5e-4, learning_rate))
+    network_dim = max(8, min(128, network_dim))
+    network_alpha = max(1, min(128, network_alpha))
+    max_train_epochs = max(5, min(50, max_train_epochs))
+    num_repeats = max(1, min(20, num_repeats))
+    
+    return {
+        'learning_rate': f"{learning_rate:.1e}",
+        'network_dim': network_dim,
+        'network_alpha': network_alpha,
+        'max_train_epochs': max_train_epochs,
+        'num_repeats': num_repeats,
+        'batch_size': batch_size,  # 返回传入的批次大小参数
+        'lora_type': lora_type,
+        'data_count': data_count,
+        'is_video_training': is_video_training
+    }
+
 
 # 导入tkinter用于文件对话框
 try:
@@ -433,8 +637,11 @@ DEFAULT_CONFIG = {
     'max_train_epochs': 16,
     'save_every_n_epochs': 1,
     'seed': 42,
-    'train_batch_size': 1,
+    'batch_size': 1,
     'num_repeats': 1,
+    
+    # 视频训练参数
+    'video_duration': 300,
     
     # 数据加载
     'max_data_loader_n_workers': 2,
@@ -463,6 +670,7 @@ DEFAULT_CONFIG = {
     
     # 其他参数
     'num_cpu_threads_per_process': 1,
+    'avg_step_time': 2.92,
 
 }
 
@@ -567,7 +775,7 @@ def get_venv_python_path(config: Dict[str, Any]):
     else:
         return 'python', False
 
-def generate_training_record_file(config: Dict[str, Any], cmd: List[str]):
+def generate_training_record_file(config: Dict[str, Any], cmd: List[str], avg_step_time: float = 2.92):
     """生成训练记录文件"""
     try:
         output_dir = config.get('output_dir', './output')
@@ -587,30 +795,146 @@ def generate_training_record_file(config: Dict[str, Any], cmd: List[str]):
         
         # 计算数据集信息
         dataset_config_path = config.get('dataset_config', '')
-        dataset_info = get_dataset_info(dataset_config_path)
+        video_duration = config.get('video_duration', 30.0)  # 获取用户设置的视频时长
+        dataset_info = get_dataset_info(dataset_config_path, video_duration)
         
         # 计算训练参数
-        batch_size = config.get('train_batch_size', 1)
+        batch_size = config.get('batch_size', 1)
         num_repeats = config.get('num_repeats', 1)
         max_epochs = config.get('max_train_epochs', 16)
         save_every_n_epochs = config.get('save_every_n_epochs', 1)
         
+        # 检查是否为视频训练模式
+        # 只使用前端传递的is_video_training参数，不再根据task_type自动判断
+        is_video_training = config.get('is_video_training', False)
+        task_type = config.get('task', 't2v')
+        
+        # 初始化步数变量
+        steps_per_epoch = 0
+        total_steps = 0
+        
         # 计算总步数
         if dataset_info['file_count'] > 0:
-            steps_per_epoch = math.ceil(dataset_info['file_count'] * num_repeats / batch_size)
-            total_steps = steps_per_epoch * max_epochs
-        else:
-            steps_per_epoch = 0
-            total_steps = 0
+            if is_video_training:
+                # 视频训练模式：从TOML配置文件读取视频训练参数
+                try:
+                    import toml
+                    config_data = toml.load(dataset_config_path)
+                    datasets = config_data.get('datasets', [])
+                    
+                    if datasets:
+                        dataset = datasets[0]  # 使用第一个数据集的配置
+                        target_frames = dataset.get('target_frames', [1, 25, 49, 73])
+                        frame_sample = dataset.get('frame_sample', 8)
+                        # 优先使用前端传递的num_repeats，而不是TOML文件中的硬编码值
+                        # 计算有效训练样本数（视频片段数）
+                        # 正确公式：视频文件数 × target_frames长度 × frame_sample × num_repeats
+                        effective_samples = dataset_info['file_count'] * len(target_frames) * frame_sample * num_repeats
+                        steps_per_epoch = math.ceil(effective_samples / batch_size)
+                        total_steps = steps_per_epoch * max_epochs
+                        
+                        print(f"[视频训练记录] target_frames: {target_frames}, frame_sample: {frame_sample}, num_repeats: {num_repeats}")
+                        print(f"[视频训练记录] 有效样本数: {effective_samples}, 每轮步数: {steps_per_epoch}, 总步数: {total_steps}")
+                    else:
+                        # 如果无法读取配置，使用默认计算
+                        steps_per_epoch = math.ceil(dataset_info['file_count'] * num_repeats / batch_size)
+                        total_steps = steps_per_epoch * max_epochs
+                except Exception as e:
+                    print(f"[视频训练记录] 读取TOML配置失败: {e}，使用默认计算")
+                    steps_per_epoch = math.ceil(dataset_info['file_count'] * num_repeats / batch_size)
+                    total_steps = steps_per_epoch * max_epochs
+            else:
+                # 图片训练模式：使用原有逻辑
+                steps_per_epoch = math.ceil(dataset_info['file_count'] * num_repeats / batch_size)
+                total_steps = steps_per_epoch * max_epochs
         
         # 生成预计文件列表
-        expected_files = generate_expected_files_list(output_dir, output_name, max_epochs, save_every_n_epochs, config.get('save_state', False), steps_per_epoch)
+        # 对于视频训练模式，使用重新计算的步数
+        if is_video_training:
+            try:
+                import toml
+                config_data = toml.load(dataset_config_path)
+                datasets = config_data.get('datasets', [])
+                
+                if datasets:
+                    dataset = datasets[0]
+                    target_frames = dataset.get('target_frames', [1, 25, 49, 73])
+                    frame_sample = dataset.get('frame_sample', 8)
+                    # 使用前端传递的num_repeats值，不再从TOML文件读取
+                    # 正确公式：视频文件数 × target_frames长度 × frame_sample × num_repeats
+                    effective_samples = dataset_info['file_count'] * len(target_frames) * frame_sample * num_repeats
+                    expected_steps_per_epoch = math.ceil(effective_samples / batch_size)
+                    expected_files = generate_expected_files_list(output_dir, output_name, max_epochs, save_every_n_epochs, config.get('save_state', False), expected_steps_per_epoch)
+                else:
+                    expected_files = generate_expected_files_list(output_dir, output_name, max_epochs, save_every_n_epochs, config.get('save_state', False), steps_per_epoch)
+            except Exception as e:
+                expected_files = generate_expected_files_list(output_dir, output_name, max_epochs, save_every_n_epochs, config.get('save_state', False), steps_per_epoch)
+        else:
+            expected_files = generate_expected_files_list(output_dir, output_name, max_epochs, save_every_n_epochs, config.get('save_state', False), steps_per_epoch)
         
         # 生成记录文件内容
-        content = f"""# 训练记录 - {output_name}
+        if is_video_training:
+            # 视频训练模式的记录内容
+            try:
+                import toml
+                config_data = toml.load(dataset_config_path)
+                datasets = config_data.get('datasets', [])
+                
+                if datasets:
+                    dataset = datasets[0]
+                    target_frames = dataset.get('target_frames', [1, 25, 49, 73])
+                    frame_sample = dataset.get('frame_sample', 8)
+                    # 使用前端传递的num_repeats值，不再从TOML文件读取
+                    # 正确公式：视频文件数 × target_frames长度 × frame_sample × num_repeats
+                    effective_samples = dataset_info['file_count'] * len(target_frames) * frame_sample * num_repeats
+                    # 重新计算步数用于.md文件显示
+                    md_steps_per_epoch = math.ceil(effective_samples / batch_size)
+                    md_total_steps = md_steps_per_epoch * max_epochs
+                    
+                    content = f"""# 训练记录 - {output_name}
 
 ## 基本信息
 **开始执行时间：** {start_time}
+**训练模式：** 视频训练 ({task_type})
+
+**执行命令：**
+```bash
+{cmd_str}
+```
+
+## 训练参数
+**数据集文件数量：** {dataset_info['file_count']}个
+**批次大小：** {batch_size}
+**重复次数：** {num_repeats}
+**训练轮次：** {max_epochs}
+**每N轮保存：** {save_every_n_epochs}
+
+## 视频训练特殊参数
+**目标帧数配置：** {target_frames}
+**每个长度桶采样数：** {frame_sample}
+**有效训练样本数：** {effective_samples} (视频片段数)
+**计算公式：** {dataset_info['file_count']} × {len(target_frames)} × {frame_sample} × {num_repeats} = {effective_samples}
+**总步数：** {md_total_steps}
+**每轮步数：** {md_steps_per_epoch}
+
+## 数据集详情
+**数据集配置文件：** {dataset_config_path}
+**总视频时长：** {dataset_info['total_duration']:.1f}秒
+**平均视频长度：** {dataset_info['avg_duration']:.1f}秒
+
+## 预计生成文件列表
+{expected_files}
+
+---
+*此文件由 Wan2.2 WebUI 自动生成于 {start_time}*
+"""
+                else:
+                    # 无法读取配置时的默认内容
+                    content = f"""# 训练记录 - {output_name}
+
+## 基本信息
+**开始执行时间：** {start_time}
+**训练模式：** 视频训练 ({task_type})
 
 **执行命令：**
 ```bash
@@ -637,6 +961,90 @@ def generate_training_record_file(config: Dict[str, Any], cmd: List[str]):
 ---
 *此文件由 Wan2.2 WebUI 自动生成于 {start_time}*
 """
+            except Exception as e:
+                # 异常时的默认内容
+                content = f"""# 训练记录 - {output_name}
+
+## 基本信息
+**开始执行时间：** {start_time}
+**训练模式：** 视频训练 ({task_type})
+
+**执行命令：**
+```bash
+{cmd_str}
+```
+
+## 训练参数
+**数据集文件数量：** {dataset_info['file_count']}个
+**批次大小：** {batch_size}
+**重复次数：** {num_repeats}
+**训练轮次：** {max_epochs}
+**每N轮保存：** {save_every_n_epochs}
+**总步数：** {total_steps}
+**每轮步数：** {steps_per_epoch}
+
+## 数据集详情
+**数据集配置文件：** {dataset_config_path}
+**总视频时长：** {dataset_info['total_duration']:.1f}秒
+**平均视频长度：** {dataset_info['avg_duration']:.1f}秒
+
+## 预计生成文件列表
+{expected_files}
+
+---
+*此文件由 Wan2.2 WebUI 自动生成于 {start_time}*
+"""
+        else:
+            # 图片训练模式的记录内容
+            # 计算预估时间
+            total_seconds = total_steps * avg_step_time
+            hours = int(total_seconds // 3600)
+            minutes = int((total_seconds % 3600) // 60)
+            seconds = int(total_seconds % 60)
+            
+            if hours > 0:
+                estimated_time = f"{hours} 小时 {minutes} 分钟 {seconds} 秒"
+            elif minutes > 0:
+                estimated_time = f"{minutes} 分钟 {seconds} 秒"
+            else:
+                estimated_time = f"{seconds} 秒"
+            
+            content = f"""# 训练记录 - {output_name}
+
+## 基本信息
+**开始执行时间：** {start_time}
+**训练模式：** 图片训练
+
+**执行命令：**
+```bash
+{cmd_str}
+```
+
+## 训练参数
+**数据集文件数量：** {dataset_info['file_count']}个
+**批次大小：** {batch_size}
+**重复次数：** {num_repeats}
+**训练轮次：** {max_epochs}
+**每N轮保存：** {save_every_n_epochs}
+
+## 训练步数计算
+**第一步：计算总步数**
+总步数 = (数据集文件数 × 重复次数 ÷ 批次大小) × 训练轮次
+总步数 = ({dataset_info['file_count']} × {num_repeats} ÷ {batch_size}) × {max_epochs} = {total_steps} 步
+
+**第二步：计算预估时间**
+预估时间 = 总步数 × 每步耗时
+预估时间 = {total_steps} × {avg_step_time} = {total_seconds:.1f} 秒 ({estimated_time})
+
+## 数据集详情
+**数据集配置文件：** {dataset_config_path}
+
+## 预计生成文件列表
+{expected_files}
+
+---
+*此文件由 Wan2.2 WebUI 自动生成于 {start_time}*
+"""
         
         # 写入记录文件
         with open(record_file, 'w', encoding='utf-8') as f:
@@ -649,7 +1057,7 @@ def generate_training_record_file(config: Dict[str, Any], cmd: List[str]):
         add_log(f"❌ 生成训练记录文件失败: {str(e)}", 'error')
         return None
 
-def get_dataset_info(dataset_config_path: str) -> Dict[str, Any]:
+def get_dataset_info(dataset_config_path: str, video_duration: float = 30.0) -> Dict[str, Any]:
     """获取数据集信息"""
     info = {
         'file_count': 0,
@@ -674,16 +1082,24 @@ def get_dataset_info(dataset_config_path: str) -> Dict[str, Any]:
         total_duration = 0.0
         
         for dataset in datasets:
-            # 修复字段名：使用image_directory而不是image_dir
-            image_dir = dataset.get('image_directory', '')
-            if os.path.exists(image_dir):
+            # 支持视频训练和图片训练的不同字段名
+            data_dir = dataset.get('video_directory', '') or dataset.get('image_directory', '')
+            if os.path.exists(data_dir):
                 # 统计txt文件数量（训练数据的标注文件）
-                files = [f for f in os.listdir(image_dir) 
+                files = [f for f in os.listdir(data_dir) 
                         if f.lower().endswith('.txt')]
                 total_files += len(files)
                 
-                # 简单估算：假设每个视频5秒（实际应该读取视频元数据）
-                total_duration += len(files) * 5.0
+                # 检查是否为视频训练（有video_directory字段）
+                if dataset.get('video_directory'):
+                    # 视频训练：统计对应的视频文件并使用传入的视频时长
+                    video_files = [f for f in os.listdir(data_dir) 
+                                 if f.lower().endswith(('.mp4', '.avi', '.mov', '.mkv', '.webm'))]
+                    # 使用传入的video_duration参数
+                    total_duration += len(video_files) * video_duration
+                else:
+                    # 图片训练：假设每个图片对应5秒
+                    total_duration += len(files) * 5.0
         
         info['file_count'] = total_files
         info['total_duration'] = total_duration
@@ -835,7 +1251,9 @@ def run_training_command(config: Dict[str, Any]):
         
         # 生成训练记录文件
         try:
-            generate_training_record_file(config, cmd)
+            # 从config中获取avg_step_time参数，默认值为2.92
+            avg_step_time = config.get('avg_step_time', 2.92)
+            generate_training_record_file(config, cmd, avg_step_time)
             add_log("训练记录文件已生成", 'info')
         except Exception as e:
             add_log(f"生成训练记录文件失败: {e}", 'warning')
@@ -947,7 +1365,7 @@ def run_cache_command(cache_type: str, config: Dict[str, Any]):
                 venv_python, 'src/musubi_tuner/wan_cache_text_encoder_outputs.py',
                 '--dataset_config', config.get('dataset_config', ''),
                 '--t5', config.get('t5', ''),
-                '--batch_size', str(config.get('train_batch_size', 16))
+                '--batch_size', str(config.get('batch_size', 16))
             ]
             
             # 添加FP8选项
@@ -1135,6 +1553,234 @@ def run_convert_lora_command(input_file: str, output_file: str, config: Dict[str
                         'timestamp': datetime.now().strftime('%H:%M:%S')
                     })
         
+        # 等待进程完成
+        cache_process.wait()
+        
+        if cache_process.returncode == 0:
+            add_log("LoRA转换完成", 'success')
+        else:
+            add_log(f"LoRA转换失败，退出代码: {cache_process.returncode}", 'error')
+            
+    except Exception as e:
+        add_log(f"LoRA转换过程出错: {str(e)}", 'error')
+        cache_process = None
+
+
+@app.route('/api/calculate_doubao_recommended_params', methods=['POST'])
+def calculate_doubao_recommended_params():
+    """豆包智能推荐所有训练参数"""
+    try:
+        data = request.get_json()
+        dataset_config = data.get('dataset_config')
+        task_type = data.get('task_type', 't2v')
+        is_video_training = data.get('is_video_training', True)
+        video_duration = data.get('video_duration', 5)
+        batch_size = data.get('batch_size', 1)
+        
+        if not dataset_config or not os.path.exists(dataset_config):
+            return jsonify({'success': False, 'message': '数据集配置文件不存在'})
+        
+        # 读取TOML文件获取数据集信息
+        import toml
+        import math
+        
+        config = toml.load(dataset_config)
+        datasets = config.get('datasets', [])
+        if not datasets:
+            return jsonify({'success': False, 'message': 'TOML文件中未找到datasets配置'})
+        
+        # 根据训练类型获取正确的数据集目录
+        if is_video_training:
+            data_directory = datasets[0].get('video_directory')
+            directory_type = 'video_directory'
+        else:
+            data_directory = datasets[0].get('image_directory')
+            directory_type = 'image_directory'
+            
+        if not data_directory or not os.path.exists(data_directory):
+            return jsonify({'success': False, 'message': '数据集目录不存在'})
+        
+        # 统计txt文件数量
+        txt_files = [f for f in os.listdir(data_directory) if f.endswith('.txt')]
+        dataset_files = len(txt_files)
+        
+        if dataset_files == 0:
+            return jsonify({'success': False, 'message': '数据集目录中未找到txt文件'})
+        
+        # 根据是否为视频训练调整参数
+        if is_video_training:
+            total_video_seconds = video_duration
+        else:
+            total_video_seconds = 0  # 非视频训练时不考虑视频时长
+        
+        # 使用豆包推荐算法
+        recommended_params = recommend_wan22_lora_params(
+            dataset_files, total_video_seconds, task_type, batch_size
+        )
+        
+        # 生成推荐理由
+        training_mode = "视频训练" if is_video_training else "图片训练"
+        duration_info = f"• 视频总时长：{video_duration} 秒" if is_video_training else "• 训练模式：图片训练（不考虑视频时长）"
+        
+        reasoning = f"""🧠 豆包智能推荐分析：
+        
+📊 数据集分析：
+• 训练文件数量：{dataset_files} 个
+{duration_info}
+• 任务类型：{task_type}
+• 训练模式：{training_mode}
+• 批次大小：{batch_size}
+
+🎯 推荐参数说明：
+• 学习率：{recommended_params['learning_rate']} - 基于数据量和任务复杂度优化
+• LoRA维度：{recommended_params['network_dim']} - 平衡模型容量和训练效率
+• LoRA Alpha：{recommended_params['network_alpha']} - 控制LoRA适配强度
+• 训练轮数：{recommended_params['max_train_epochs']} - 确保充分学习而不过拟合
+• 重复次数：{recommended_params['num_repeats']} - 优化数据利用效率
+
+💡 豆包算法特点：
+• 采用数学建模方法精确计算最优参数
+• 考虑视频时长对训练复杂度的影响
+• 针对不同任务类型进行专门优化
+• 平衡训练效果与计算资源消耗"""
+        
+        return jsonify({
+            'success': True,
+            'recommended_params': recommended_params,
+            'reasoning': reasoning
+        })
+        
+    except Exception as e:
+        logger.error(f"豆包推荐参数计算失败: {e}")
+        return jsonify({'success': False, 'message': f'计算失败: {str(e)}'})
+
+
+@app.route('/api/calculate_software_recommended_params', methods=['POST'])
+def calculate_software_recommended_params():
+    """软件智能推荐所有训练参数"""
+    try:
+        data = request.get_json()
+        dataset_config = data.get('dataset_config')
+        task_type = data.get('task_type', 't2v')
+        is_video_training = data.get('is_video_training', False)
+        video_duration = data.get('video_duration', 0)
+        batch_size = data.get('batch_size', 1)
+        lora_type = data.get('lora_type', 'realistic')  # 'realistic' 或 'anime'
+        
+        if not dataset_config or not os.path.exists(dataset_config):
+            return jsonify({'success': False, 'message': '数据集配置文件不存在'})
+        
+        # 读取TOML文件获取数据集信息
+        import toml
+        
+        config = toml.load(dataset_config)
+        datasets = config.get('datasets', [])
+        if not datasets:
+            return jsonify({'success': False, 'message': 'TOML文件中未找到datasets配置'})
+        
+        # 根据训练类型获取正确的数据集目录
+        if is_video_training:
+            data_directory = datasets[0].get('video_directory')
+            directory_type = 'video_directory'
+        else:
+            data_directory = datasets[0].get('image_directory')
+            directory_type = 'image_directory'
+            
+        if not data_directory or not os.path.exists(data_directory):
+            return jsonify({'success': False, 'message': '数据集目录不存在'})
+        
+        # 统计txt文件数量
+        txt_files = [f for f in os.listdir(data_directory) if f.endswith('.txt')]
+        dataset_files = len(txt_files)
+        
+        if dataset_files == 0:
+            return jsonify({'success': False, 'message': '数据集目录中未找到txt文件'})
+        
+        # 根据是否为视频训练调整参数
+        total_video_seconds = video_duration if is_video_training else 0
+        
+        # 使用软件推荐算法
+        recommended_params = recommend_software_lora_params(
+            dataset_files, total_video_seconds, lora_type, task_type, batch_size
+        )
+        
+        # 生成推荐理由
+        training_mode = "视频训练" if is_video_training else "图片训练"
+        lora_type_name = "写实风格" if lora_type == 'realistic' else "动漫风格"
+        
+        if is_video_training:
+            equivalent_frames = int(video_duration * 4)  # 4fps抽帧
+            duration_info = f"• 视频总时长：{video_duration} 秒\n• 等效帧数：{equivalent_frames} 帧（按4fps抽帧计算）"
+        else:
+            duration_info = "• 训练模式：图片训练（不考虑视频时长）"
+        
+        # 根据数据量级别给出说明
+        data_count = recommended_params['data_count']
+        
+        if is_video_training:
+            # 视频训练按等效帧数分级
+            if data_count <= 1200:
+                data_level = "小规模视频数据（≤1200帧）"
+                strategy = "高重复次数训练，确保充分学习视频特征"
+            elif data_count <= 3000:
+                data_level = "中等规模视频数据（1200-3000帧）"
+                strategy = "平衡重复次数和维度，优化视频训练效果"
+            else:
+                data_level = "大规模视频数据（>3000帧）"
+                strategy = "降低重复次数，防止过拟合大量视频数据"
+        else:
+            # 图片训练按原有逻辑分级
+            if data_count <= 20:
+                data_level = "极小数据集"
+                strategy = "高重复次数 + 适中维度，防止过拟合"
+            elif data_count <= 60:
+                data_level = "小数据集"
+                strategy = "平衡重复次数和学习率，确保充分学习"
+            elif data_count <= 100:
+                data_level = "中等数据集"
+                strategy = "降低重复次数，提高学习效率"
+            elif data_count <= 500:
+                data_level = "大数据集"
+                strategy = "减少重复和轮数，避免过拟合"
+            else:
+                data_level = "超大数据集"
+                strategy = "最小重复次数，快速收敛"
+        
+        reasoning = f"""⚙️ 软件智能推荐分析：
+        
+📊 数据集分析：
+• 训练文件数量：{dataset_files} 个
+{duration_info}
+• 任务类型：{task_type}
+• 训练模式：{training_mode}
+• LoRA类型：{lora_type_name}
+• 数据量级别：{data_level}
+• 批次大小：{batch_size}
+
+🎯 推荐参数说明：
+• 学习率：{recommended_params['learning_rate']} - 基于{lora_type_name}优化的学习率
+• LoRA维度：{recommended_params['network_dim']} - {lora_type_name}推荐维度配置
+• LoRA Alpha：{recommended_params['network_alpha']} - 匹配维度的Alpha值
+• 训练轮数：{recommended_params['max_train_epochs']} - 根据数据量调整的轮数
+• 重复次数：{recommended_params['num_repeats']} - {data_level}优化的重复策略
+
+💡 推荐策略：
+• {strategy}
+• {lora_type_name}专用参数优化
+• 考虑批次大小对学习率的影响
+• 平衡训练效果与计算效率"""
+        
+        return jsonify({
+            'success': True,
+            'recommended_params': recommended_params,
+            'reasoning': reasoning
+        })
+        
+    except Exception as e:
+        logger.error(f"软件推荐参数计算失败: {e}")
+        return jsonify({'success': False, 'message': f'计算失败: {str(e)}'})
+
+
         # 检查转换结果
         return_code = cache_process.poll()
         if return_code == 0:
@@ -1280,8 +1926,8 @@ def load_config_api():
                 
                 # 从TOML文件中读取batch_size（从[general]部分）
                 if 'general' in toml_config and 'batch_size' in toml_config['general']:
-                    config['train_batch_size'] = toml_config['general']['batch_size']
-                    add_log(f"从 {dataset_config_path} 读取 batch_size: {config['train_batch_size']}", 'info')
+                    config['batch_size'] = toml_config['general']['batch_size']
+                    add_log(f"从 {dataset_config_path} 读取 batch_size: {config['batch_size']}", 'info')
                 
                 # 从TOML文件中读取num_repeats（先检查[general]，再检查[[datasets]]）
                 if 'general' in toml_config and 'num_repeats' in toml_config['general']:
@@ -1310,7 +1956,7 @@ def save_config_api():
             return jsonify({'success': False, 'message': '配置保存失败'})
         
         # 保存批次大小和重复次数到TOML文件
-        if 'dataset_config' in config and ('train_batch_size' in config or 'num_repeats' in config):
+        if 'dataset_config' in config and ('batch_size' in config or 'num_repeats' in config):
             # 使用用户指定的数据集配置文件路径
             toml_file = Path(config['dataset_config'])
             toml_content = ""
@@ -1324,9 +1970,9 @@ def save_config_api():
             updated_params = []
             
             # 处理batch_size
-            if 'train_batch_size' in config:
+            if 'batch_size' in config:
                 batch_size_pattern = r'batch_size\s*=\s*\d+'
-                new_batch_size = f"batch_size = {config['train_batch_size']}"
+                new_batch_size = f"batch_size = {config['batch_size']}"
                 
                 if '[general]' in toml_content:
                     if re.search(batch_size_pattern, toml_content):
@@ -1337,7 +1983,7 @@ def save_config_api():
                     if toml_content and not toml_content.endswith('\n'):
                         toml_content += '\n'
                     toml_content += f"\n[general]\n{new_batch_size}\n"
-                updated_params.append(f"batch_size={config['train_batch_size']}")
+                updated_params.append(f"batch_size={config['batch_size']}")
             
             # 处理num_repeats - 保存到[[datasets]]部分
             if 'num_repeats' in config:
@@ -1780,7 +2426,7 @@ def calculate_recommended_learning_rate():
     try:
         data = request.get_json()
         dataset_config = data.get('dataset_config')
-        train_batch_size = data.get('train_batch_size', 1)
+        batch_size = data.get('batch_size', 1)
         optimizer_type = data.get('optimizer_type', 'adamw8bit')  # 获取优化器类型
         task_type = data.get('task_type', 't2v')  # T2V或I2V
         is_video_training = data.get('is_video_training', True)  # 是否为视频训练
@@ -1806,24 +2452,30 @@ def calculate_recommended_learning_rate():
             if not datasets:
                 return jsonify({'success': False, 'message': 'TOML文件中未找到datasets配置'})
             
-            # 获取第一个数据集的image_directory
-            image_directory = datasets[0].get('image_directory')
-            if not image_directory:
-                return jsonify({'success': False, 'message': '数据集配置中未找到image_directory'})
+            # 根据训练类型获取正确的数据集目录
+            if is_video_training:
+                data_directory = datasets[0].get('video_directory')
+                directory_type = 'video_directory'
+            else:
+                data_directory = datasets[0].get('image_directory')
+                directory_type = 'image_directory'
+                
+            if not data_directory:
+                return jsonify({'success': False, 'message': f'数据集配置中未找到{directory_type}'})
             
             # 统计txt文件数量
             dataset_files = 0
-            if os.path.exists(image_directory):
-                for file in os.listdir(image_directory):
+            if os.path.exists(data_directory):
+                for file in os.listdir(data_directory):
                     if file.lower().endswith('.txt'):
                         dataset_files += 1
             
             if dataset_files == 0:
-                return jsonify({'success': False, 'message': f'在 {image_directory} 中未找到txt文件'})
+                return jsonify({'success': False, 'message': f'在 {data_directory} 中未找到txt文件'})
             
             # 计算视频时长（用于视频训练模式显示）
             video_duration = 0
-            if is_video_training and os.path.exists(image_directory):
+            if is_video_training and os.path.exists(data_directory):
                 # 假设每个视频片段为5秒，根据txt文件数量估算总时长
                 video_duration = dataset_files * 5 / 60  # 转换为分钟
             else:
@@ -1837,49 +2489,49 @@ def calculate_recommended_learning_rate():
                 if task_type == 'i2v':
                     # I2V：更保守的学习率
                     if optimizer_type in ['adamw8bit', 'AdamW']:
-                        batch_factor = train_batch_size / 64  # I2V更保守的batch缩放
+                        batch_factor = batch_size / 64  # I2V更保守的batch缩放
                         data_factor = math.log10(dataset_files / 20 + 1) * 0.5  # I2V数据缩放更保守
                         recommended_lr = base_lr * batch_factor * data_factor * 0.3  # I2V总体缩放因子
                     elif optimizer_type == 'Lion':
-                        batch_factor = math.sqrt(train_batch_size / 32)
+                        batch_factor = math.sqrt(batch_size / 32)
                         data_factor = math.sqrt(dataset_files / 100) * 0.5
                         recommended_lr = base_lr * batch_factor * data_factor * 0.2
                     else:
-                        batch_factor = train_batch_size / 32
+                        batch_factor = batch_size / 32
                         data_factor = math.sqrt(dataset_files / 100)
                         recommended_lr = base_lr * batch_factor * data_factor * 0.3
                     calculation_detail = f"I2V视频训练，{optimizer_type}优化器，保守缩放策略"
                 else:
                     # T2V：相对更高的学习率
                     if optimizer_type in ['adamw8bit', 'AdamW']:
-                        batch_factor = train_batch_size / 32  # T2V标准batch缩放
+                        batch_factor = batch_size / 32  # T2V标准batch缩放
                         data_factor = math.log10(dataset_files / 10 + 1)  # T2V标准数据缩放
                         recommended_lr = base_lr * batch_factor * data_factor * 0.5  # T2V适中缩放因子
                     elif optimizer_type == 'Lion':
-                        batch_factor = math.sqrt(train_batch_size / 16)
+                        batch_factor = math.sqrt(batch_size / 16)
                         data_factor = math.sqrt(dataset_files / 50)
                         recommended_lr = base_lr * batch_factor * data_factor * 0.4
                     else:
-                        batch_factor = train_batch_size / 16
+                        batch_factor = batch_size / 16
                         data_factor = math.sqrt(dataset_files / 100)
                         recommended_lr = base_lr * batch_factor * data_factor * 0.5
                     calculation_detail = f"T2V视频训练，{optimizer_type}优化器，标准缩放策略"
             else:
                 # 图像训练：使用原有逻辑
                 if optimizer_type in ['adamw8bit', 'AdamW']:
-                    batch_factor = train_batch_size / 32
+                    batch_factor = batch_size / 32
                     data_factor = math.log10(dataset_files / 10 + 1)
                     recommended_lr = base_lr * batch_factor * data_factor
                 elif optimizer_type == 'Lion':
-                    batch_factor = math.sqrt(train_batch_size / 16)
+                    batch_factor = math.sqrt(batch_size / 16)
                     data_factor = math.sqrt(dataset_files / 50)
                     recommended_lr = base_lr * batch_factor * data_factor
                 elif optimizer_type == 'SGDNesterov':
-                    batch_factor = train_batch_size / 16
+                    batch_factor = batch_size / 16
                     data_factor = math.sqrt(dataset_files / 100)
                     recommended_lr = base_lr * batch_factor * data_factor
                 else:  # Adafactor
-                    batch_factor = math.sqrt(train_batch_size)
+                    batch_factor = math.sqrt(batch_size)
                     data_factor = math.log10(dataset_files / 20 + 1)
                     recommended_lr = base_lr * batch_factor * data_factor
                 calculation_detail = f"图像训练，{optimizer_type}优化器，传统缩放策略"
@@ -1899,13 +2551,13 @@ def calculate_recommended_learning_rate():
             task_name = "图生视频(I2V)" if task_type == 'i2v' else "文生视频(T2V)"
             training_type = "视频训练" if is_video_training else "图像训练"
             
-            add_log(f"推荐学习率计算完成: {lr_str} ({training_type}的{task_name}, 优化器: {optimizer_type}, 数据集: {dataset_files}个文件, batch_size: {train_batch_size})", 'info')
+            add_log(f"推荐学习率计算完成: {lr_str} ({training_type}的{task_name}, 优化器: {optimizer_type}, 数据集: {dataset_files}个文件, batch_size: {batch_size})", 'info')
             
             return jsonify({
                 'success': True,
                 'recommended_lr': lr_str,
                 'dataset_files': dataset_files,
-                'train_batch_size': train_batch_size,
+                'batch_size': batch_size,
                 'optimizer_type': optimizer_type,
                 'optimizer_description': optimizer_descriptions.get(optimizer_type, ''),
                 'base_lr': base_lr,
@@ -1948,13 +2600,19 @@ def calculate_gpt_recommended_learning_rate():
             if not datasets:
                 return jsonify({'success': False, 'message': 'TOML文件中未找到datasets配置'})
             
-            # 获取第一个数据集的image_directory
-            image_directory = datasets[0].get('image_directory')
-            if not image_directory or not os.path.exists(image_directory):
+            # 根据训练类型获取正确的数据集目录
+            if is_video_training:
+                data_directory = datasets[0].get('video_directory')
+                directory_type = 'video_directory'
+            else:
+                data_directory = datasets[0].get('image_directory')
+                directory_type = 'image_directory'
+                
+            if not data_directory or not os.path.exists(data_directory):
                 return jsonify({'success': False, 'message': '数据集目录不存在'})
             
             # 统计txt文件数量
-            txt_files = [f for f in os.listdir(image_directory) if f.endswith('.txt')]
+            txt_files = [f for f in os.listdir(data_directory) if f.endswith('.txt')]
             txt_count = len(txt_files)
             
             if txt_count == 0:
@@ -2104,20 +2762,33 @@ def calculate_recommended_lora_params():
             if not datasets:
                 return jsonify({'success': False, 'message': 'TOML文件中未找到datasets配置'})
             
-            # 获取第一个数据集的image_directory
-            image_directory = datasets[0].get('image_directory')
-            if not image_directory:
-                return jsonify({'success': False, 'message': '数据集配置中未找到image_directory'})
+            # 获取训练类型信息
+            task_type = config.get('task_type', 't2v')
+            is_video_training = config.get('is_video_training', False)
+            
+            # 根据训练类型获取数据集目录
+            first_dataset = datasets[0]
+            if is_video_training:
+                data_directory = first_dataset.get('video_directory')
+                directory_type = 'video_directory'
+            else:
+                data_directory = first_dataset.get('image_dir') or first_dataset.get('image_directory')
+                directory_type = 'image_directory'
+            
+            if not data_directory:
+                return jsonify({'success': False, 'message': f'数据集配置中未找到{directory_type}'})
+            
+            if not os.path.exists(data_directory):
+                return jsonify({'success': False, 'message': f'数据集目录不存在: {data_directory}'})
             
             # 统计txt文件数量
             dataset_files = 0
-            if os.path.exists(image_directory):
-                for file in os.listdir(image_directory):
-                    if file.lower().endswith('.txt'):
-                        dataset_files += 1
+            for file in os.listdir(data_directory):
+                if file.lower().endswith('.txt'):
+                    dataset_files += 1
             
             if dataset_files == 0:
-                return jsonify({'success': False, 'message': f'在 {image_directory} 中未找到txt文件'})
+                return jsonify({'success': False, 'message': f'在 {data_directory} 中未找到txt文件'})
             
             if param_type == 'network_dim':
                 # LoRA维度推荐逻辑（根据训练类型和任务类型差异化推荐）
@@ -2264,13 +2935,19 @@ def calculate_recommended_lora_joint():
             if not datasets:
                 return jsonify({'success': False, 'message': 'TOML文件中未找到datasets配置'})
             
-            # 获取第一个数据集的image_directory
-            image_directory = datasets[0].get('image_directory')
-            if not image_directory or not os.path.exists(image_directory):
+            # 根据训练类型获取正确的数据集目录
+            if is_video_training:
+                data_directory = datasets[0].get('video_directory')
+                directory_type = 'video_directory'
+            else:
+                data_directory = datasets[0].get('image_directory')
+                directory_type = 'image_directory'
+                
+            if not data_directory or not os.path.exists(data_directory):
                 return jsonify({'success': False, 'message': '数据集目录不存在'})
             
             # 统计txt文件数量
-            txt_files = [f for f in os.listdir(image_directory) if f.endswith('.txt')]
+            txt_files = [f for f in os.listdir(data_directory) if f.endswith('.txt')]
             txt_count = len(txt_files)
             
             if txt_count == 0:
@@ -2375,7 +3052,7 @@ def calculate_recommended_epochs():
     try:
         data = request.get_json()
         dataset_config = data.get('dataset_config')
-        train_batch_size = data.get('train_batch_size', 1)
+        batch_size = data.get('batch_size', 1)
         
         if not dataset_config or not os.path.exists(dataset_config):
             return jsonify({'success': False, 'message': '数据集配置文件不存在'})
@@ -2404,7 +3081,7 @@ def calculate_recommended_epochs():
                 return jsonify({'success': False, 'message': f'在 {image_directory} 中未找到txt文件'})
             
             # 计算每轮步数
-            steps_per_epoch = max(1, dataset_files // train_batch_size)
+            steps_per_epoch = max(1, dataset_files // batch_size)
             
             # 根据数据集大小推荐训练轮数
             if dataset_files <= 20:
@@ -2436,7 +3113,7 @@ def calculate_recommended_epochs():
                 'success': True,
                 'recommended_value': recommended_epochs,
                 'dataset_files': dataset_files,
-                'batch_size': train_batch_size,
+                'batch_size': batch_size,
                 'steps_per_epoch': steps_per_epoch,
                 'estimated_steps': estimated_steps,
                 'estimated_time_minutes': int(estimated_time_minutes),
@@ -2457,17 +3134,21 @@ def estimate_training_time():
     try:
         data = request.get_json()
         dataset_config = data.get('dataset_config')
-        train_batch_size = data.get('train_batch_size', 1)
+        batch_size = data.get('batch_size', 1)
         num_repeats = data.get('num_repeats', 1)
         max_train_epochs = data.get('max_train_epochs', 1)
         save_every_n_epochs = data.get('save_every_n_epochs', 1)
         output_name = data.get('output_name', 'wan22-lora')
         avg_step_time = data.get('avg_step_time', 2.92)
         
+        # 获取前端传递的视频训练参数
+        is_video_training_frontend = data.get('is_video_training', False)
+        video_duration = data.get('video_duration', 0)
+        
         if not dataset_config or not os.path.exists(dataset_config):
             return jsonify({'success': False, 'message': '数据集配置文件不存在'})
         
-        # 读取TOML文件获取image_directory路径
+        # 读取TOML文件获取数据集目录路径
         import toml
         try:
             config = toml.load(dataset_config)
@@ -2475,26 +3156,62 @@ def estimate_training_time():
             if not datasets:
                 return jsonify({'success': False, 'message': 'TOML文件中未找到datasets配置'})
             
-            # 获取第一个数据集的image_directory
-            image_directory = datasets[0].get('image_directory')
-            if not image_directory:
-                return jsonify({'success': False, 'message': '数据集配置中未找到image_directory'})
+            # 获取训练类型信息，优先使用前端传递的参数
+            task_type = config.get('task_type', 't2v')
+            is_video_training = is_video_training_frontend or config.get('is_video_training', False)
+            
+            # 根据训练类型获取数据集目录
+            first_dataset = datasets[0]
+            if is_video_training:
+                data_directory = first_dataset.get('video_directory')
+                directory_type = 'video_directory'
+            else:
+                data_directory = first_dataset.get('image_dir') or first_dataset.get('image_directory')
+                directory_type = 'image_directory'
+            
+            if not data_directory:
+                return jsonify({'success': False, 'message': f'数据集配置中未找到{directory_type}'})
+            
+            if not os.path.exists(data_directory):
+                return jsonify({'success': False, 'message': f'数据集目录不存在: {data_directory}'})
             
             # 统计txt文件数量
             dataset_files = 0
-            if os.path.exists(image_directory):
-                for file in os.listdir(image_directory):
-                    if file.endswith('.txt'):
-                        dataset_files += 1
+            for file in os.listdir(data_directory):
+                if file.endswith('.txt'):
+                    dataset_files += 1
             
             if dataset_files == 0:
-                return jsonify({'success': False, 'message': f'在 {image_directory} 中未找到任何.txt文件'})
+                return jsonify({'success': False, 'message': f'在 {data_directory} 中未找到任何.txt文件'})
             
-            # 计算总步数: (文件数量 * num_repeats / train_batch_size) * max_train_epochs
-            total_steps = int((dataset_files * num_repeats / train_batch_size) * max_train_epochs)
+            # 计算实际训练样本数
+            if is_video_training:
+                # 视频训练模式：需要考虑视频片段拆分
+                # 从TOML配置文件读取视频训练参数
+                target_frames = first_dataset.get('target_frames', [1, 25, 49, 73])
+                frame_sample = first_dataset.get('frame_sample', 8)
+                dataset_num_repeats = first_dataset.get('num_repeats', num_repeats)
+                
+                # 计算总片段数：视频文件数 × 目标帧数种类数 × 每种帧数的采样数
+                total_segments = dataset_files * len(target_frames) * frame_sample
+                
+                # 应用数据重复次数
+                effective_samples = total_segments * dataset_num_repeats
+                
+                add_log(f"视频训练模式计算详情:", 'info')
+                add_log(f"- 视频文件数: {dataset_files}", 'info')
+                add_log(f"- 目标帧数配置: {target_frames} (共{len(target_frames)}种)", 'info')
+                add_log(f"- 每种帧数采样数: {frame_sample}", 'info')
+                add_log(f"- 总片段数: {dataset_files} × {len(target_frames)} × {frame_sample} = {total_segments}", 'info')
+                add_log(f"- 数据重复次数: {dataset_num_repeats}", 'info')
+                add_log(f"- 有效训练样本数: {total_segments} × {dataset_num_repeats} = {effective_samples}", 'info')
+            else:
+                # 图片训练模式：使用原有逻辑
+                effective_samples = dataset_files * num_repeats
             
-            # 计算每轮的步数
-            steps_per_epoch = int((dataset_files * num_repeats) / train_batch_size)
+            # 计算总步数和每轮步数
+            steps_per_epoch = int(effective_samples / batch_size)
+            total_steps = steps_per_epoch * max_train_epochs
             
             # 生成预计文件列表
             predicted_files = []
@@ -2538,7 +3255,8 @@ def estimate_training_time():
             
             add_log(f"训练时间估算完成: {estimated_time} (总步数: {total_steps}, 数据集文件数: {dataset_files}, 预计生成{len(predicted_files)}个文件)", 'info')
             
-            return jsonify({
+            # 准备返回数据
+            result_data = {
                 'success': True,
                 'estimated_time': estimated_time,
                 'total_steps': total_steps,
@@ -2546,7 +3264,14 @@ def estimate_training_time():
                 'total_seconds': total_seconds,
                 'steps_per_epoch': steps_per_epoch,
                 'predicted_files': predicted_files
-            })
+            }
+            
+            # 如果是视频训练模式，添加视频片段信息
+            if is_video_training_frontend:
+                result_data['video_segments'] = effective_samples
+                print(f"[视频训练] 返回视频片段数: {effective_samples}")
+            
+            return jsonify(result_data)
             
         except Exception as e:
             return jsonify({'success': False, 'message': f'解析TOML文件失败: {e}'})
@@ -2579,19 +3304,27 @@ def calculate_recommended_num_repeats():
             # 计算数据集文件数量
             dataset_files = 0
             for dataset in datasets:
-                # 支持多种字段名：image_dir, image_directory
-                image_dir = dataset.get('image_dir') or dataset.get('image_directory')
-                if image_dir and os.path.exists(image_dir):
-                    try:
-                        files = [f for f in os.listdir(image_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp', '.mp4', '.avi', '.mov'))]
-                        dataset_files += len(files)
-                        add_log(f"数据集目录 {image_dir} 找到 {len(files)} 个文件", 'info')
-                    except Exception as e:
-                        add_log(f"读取数据集目录 {image_dir} 失败: {e}", 'warning')
-                elif image_dir:
-                    add_log(f"数据集目录不存在: {image_dir}", 'warning')
+                # 根据训练类型获取正确的目录字段
+                if is_video_training:
+                    data_dir = dataset.get('video_directory')
+                    directory_type = 'video_directory'
+                    file_extensions = ('.mp4', '.avi', '.mov', '.mkv', '.webm')
                 else:
-                    add_log(f"数据集配置中缺少image_dir或image_directory字段", 'warning')
+                    data_dir = dataset.get('image_dir') or dataset.get('image_directory')
+                    directory_type = 'image_dir或image_directory'
+                    file_extensions = ('.jpg', '.jpeg', '.png', '.webp')
+                    
+                if data_dir and os.path.exists(data_dir):
+                    try:
+                        files = [f for f in os.listdir(data_dir) if f.lower().endswith(file_extensions)]
+                        dataset_files += len(files)
+                        add_log(f"数据集目录 {data_dir} 找到 {len(files)} 个文件", 'info')
+                    except Exception as e:
+                        add_log(f"读取数据集目录 {data_dir} 失败: {e}", 'warning')
+                elif data_dir:
+                    add_log(f"数据集目录不存在: {data_dir}", 'warning')
+                else:
+                    add_log(f"数据集配置中缺少{directory_type}字段", 'warning')
             
             # 根据训练类型计算推荐重复次数
             if is_video_training:
@@ -2680,13 +3413,19 @@ def calculate_chatgpt_recommended_params():
         if not datasets:
             return jsonify({'success': False, 'message': 'TOML文件中未找到datasets配置'})
         
-        # 获取第一个数据集的image_directory
-        image_directory = datasets[0].get('image_directory')
-        if not image_directory or not os.path.exists(image_directory):
+        # 根据训练类型获取正确的数据集目录
+        if is_video_training:
+            data_directory = datasets[0].get('video_directory')
+            directory_type = 'video_directory'
+        else:
+            data_directory = datasets[0].get('image_directory')
+            directory_type = 'image_directory'
+            
+        if not data_directory or not os.path.exists(data_directory):
             return jsonify({'success': False, 'message': '数据集目录不存在'})
         
         # 统计txt文件数量
-        txt_files = [f for f in os.listdir(image_directory) if f.endswith('.txt')]
+        txt_files = [f for f in os.listdir(data_directory) if f.endswith('.txt')]
         dataset_files = len(txt_files)
         
         if dataset_files == 0:
@@ -2700,10 +3439,10 @@ def calculate_chatgpt_recommended_params():
         if is_video_training:
             total_video_seconds = video_duration  # 直接使用用户设置的总时长
             avg_video_len = video_duration / N_files if N_files > 0 else 0  # 计算平均单个视频时长
-            # 计算有效样本数：视频拆帧时，每5秒算1个训练样本
-            N_eff = int(max(N_files, total_video_seconds / 5))  # 确保至少每个文件算1个样本
-            # 计算总视频时长用于显示（转换为分钟）
-            video_duration_calc = total_video_seconds / 60
+            # 有效样本数就是txt文件数量（每个txt对应一个训练样本）
+            N_eff = N_files
+            # 视频时长保持秒数显示
+            video_duration_calc = total_video_seconds
         else:
             total_video_seconds = 0
             avg_video_len = 0
@@ -2822,19 +3561,27 @@ def calculate_chatgpt_recommended_num_repeats():
             # 计算数据集文件数量
             dataset_files = 0
             for dataset in datasets:
-                # 支持多种字段名：image_dir, image_directory
-                image_dir = dataset.get('image_dir') or dataset.get('image_directory')
-                if image_dir and os.path.exists(image_dir):
-                    try:
-                        files = [f for f in os.listdir(image_dir) if f.lower().endswith(('.jpg', '.jpeg', '.png', '.webp', '.mp4', '.avi', '.mov'))]
-                        dataset_files += len(files)
-                        add_log(f"ChatGPT算法 - 数据集目录 {image_dir} 找到 {len(files)} 个文件", 'info')
-                    except Exception as e:
-                        add_log(f"ChatGPT算法 - 读取数据集目录 {image_dir} 失败: {e}", 'warning')
-                elif image_dir:
-                    add_log(f"ChatGPT算法 - 数据集目录不存在: {image_dir}", 'warning')
+                # 根据训练类型获取正确的目录字段
+                if is_video_training:
+                    data_dir = dataset.get('video_directory')
+                    directory_type = 'video_directory'
+                    file_extensions = ('.mp4', '.avi', '.mov', '.mkv', '.webm')
                 else:
-                    add_log(f"ChatGPT算法 - 数据集配置中缺少image_dir或image_directory字段", 'warning')
+                    data_dir = dataset.get('image_dir') or dataset.get('image_directory')
+                    directory_type = 'image_dir或image_directory'
+                    file_extensions = ('.jpg', '.jpeg', '.png', '.webp')
+                    
+                if data_dir and os.path.exists(data_dir):
+                    try:
+                        files = [f for f in os.listdir(data_dir) if f.lower().endswith(file_extensions)]
+                        dataset_files += len(files)
+                        add_log(f"ChatGPT算法 - 数据集目录 {data_dir} 找到 {len(files)} 个文件", 'info')
+                    except Exception as e:
+                        add_log(f"ChatGPT算法 - 读取数据集目录 {data_dir} 失败: {e}", 'warning')
+                elif data_dir:
+                    add_log(f"ChatGPT算法 - 数据集目录不存在: {data_dir}", 'warning')
+                else:
+                    add_log(f"ChatGPT算法 - 数据集配置中缺少{directory_type}字段", 'warning')
             
             # ChatGPT推荐算法：基于目标总步数计算
             # 目标总步数范围选择
