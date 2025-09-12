@@ -1281,17 +1281,212 @@ def run_training_command(config: Dict[str, Any]):
                     preexec_fn=os.setsid
                 )
         
+        # 训练进度跟踪变量
+        training_start_time = time.time()
+        current_epoch = 0
+        current_step = 0
+        total_epochs = config.get('max_train_epochs', 16)
+        total_steps = 0
+        step_times = []
+        last_step_time = time.time()
+        training_started = False  # 标记训练是否已开始
+        
         # 在新线程中读取输出并通过WebSocket实时发送
         def read_output():
+            nonlocal current_epoch, current_step, total_epochs, total_steps, step_times, last_step_time, training_started
+            import re
+            
             try:
                 for line in iter(training_process.stdout.readline, ''):
                     if line:
                         stripped_line = line.strip()
+                        current_time = time.time()
+                        
+                        # 智能解析训练进度信息
+                        progress_info = {}
+                        
+                        # 检测训练是否开始
+                        if not training_started and ('total optimization steps' in stripped_line.lower() or 
+                                                    ('steps:' in stripped_line.lower() and '%' in stripped_line) or
+                                                    'avr_loss=' in stripped_line.lower() or
+                                                    'loaded dit model from' in stripped_line.lower()):
+                            training_started = True
+                            # 发送训练开始信号
+                            socketio.emit('training_progress', {'training_started': True})
+                        
+                        # 模型加载相关代码已删除
+                        
+                        # 检测训练参数配置信息
+                        config_info = {}
+                        
+                        # 优化器信息
+                        if 'optimizer' in stripped_line.lower():
+                            if 'adamw8bit' in stripped_line.lower():
+                                config_info['optimizer'] = '8位AdamW优化器 (节省显存)'
+                            elif 'adamw' in stripped_line.lower():
+                                config_info['optimizer'] = 'AdamW优化器'
+                            elif 'lion' in stripped_line.lower():
+                                config_info['optimizer'] = 'Lion优化器'
+                        
+                        # 混合精度信息
+                        if 'mixed precision' in stripped_line.lower() or 'fp16' in stripped_line or 'bf16' in stripped_line:
+                            if 'bf16' in stripped_line:
+                                config_info['precision'] = 'BF16混合精度 (推荐)'
+                            elif 'fp16' in stripped_line:
+                                config_info['precision'] = 'FP16混合精度'
+                        
+                        # 梯度检查点
+                        if 'gradient checkpointing' in stripped_line.lower():
+                            if 'enabled' in stripped_line.lower() or 'true' in stripped_line.lower():
+                                config_info['gradient_checkpointing'] = '梯度检查点已启用 (节省显存)'
+                        
+                        # SDPA优化
+                        if 'sdpa' in stripped_line.lower():
+                            if 'enabled' in stripped_line.lower() or 'true' in stripped_line.lower():
+                                config_info['sdpa'] = 'SDPA注意力优化已启用'
+                        
+                        # FP8优化
+                        if 'fp8' in stripped_line.lower():
+                            if 'base' in stripped_line.lower():
+                                config_info['fp8_base'] = 'FP8基础模型已启用 (大幅节省显存)'
+                            elif 't5' in stripped_line.lower():
+                                config_info['fp8_t5'] = 'FP8 T5编码器已启用'
+                        
+                        # 双模型训练信息
+                        if 'timestep_boundary' in stripped_line.lower():
+                            boundary_match = re.search(r'(\d+)', stripped_line)
+                            if boundary_match:
+                                boundary = boundary_match.group(1)
+                                config_info['dual_model'] = f'双模型训练 (时间步边界: {boundary})'
+                        
+                        # 训练项目信息
+                        if 'train_data_num' in stripped_line:
+                            data_match = re.search(r'train_data_num\s*=\s*(\d+)', stripped_line)
+                            if data_match:
+                                config_info['train_data_num'] = f'训练数据: {data_match.group(1)} 个项目'
+                        
+                        # 批次大小信息
+                        if 'batch_size' in stripped_line:
+                            batch_match = re.search(r'batch_size\s*=\s*(\d+)', stripped_line)
+                            if batch_match:
+                                config_info['batch_size'] = f'批次大小: {batch_match.group(1)}'
+                        
+                        # 学习率信息
+                        if 'learning_rate' in stripped_line:
+                            lr_match = re.search(r'learning_rate\s*=\s*([0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)', stripped_line)
+                            if lr_match:
+                                config_info['learning_rate'] = f'学习率: {lr_match.group(1)}'
+                        
+                        # 解析epoch信息 - 匹配 "epoch 1/16" 或 "Epoch: 1" 等格式
+                        epoch_match = re.search(r'(?:epoch|Epoch)\s*:?\s*(\d+)(?:/|\s+of\s+)?(\d+)?', stripped_line, re.IGNORECASE)
+                        if epoch_match:
+                            current_epoch = int(epoch_match.group(1))
+                            if epoch_match.group(2):
+                                total_epochs = int(epoch_match.group(2))
+                            progress_info['epoch'] = current_epoch
+                            progress_info['total_epochs'] = total_epochs
+                        
+                        # 解析step信息 - 匹配 "steps: 0%| | 1/3750 [00:13<14:13:46, 13.66s/it]" 格式
+                        step_match = re.search(r'steps?\s*:\s*(\d+)%\|[^|]*\|\s*(\d+)/(\d+)\s*\[([^<]+)<([^,]+),\s*([^\]]+)\]', stripped_line, re.IGNORECASE)
+                        if step_match:
+                            percent = int(step_match.group(1))
+                            new_step = int(step_match.group(2))
+                            total_steps = int(step_match.group(3))
+                            elapsed_time = step_match.group(4)
+                            eta_time = step_match.group(5)
+                            step_rate = step_match.group(6)
+                            
+                            if new_step != current_step:
+                                # 记录步骤时间 - 只在训练开始后且步数>=1时开始计算
+                                if training_started and current_step >= 1:
+                                    step_time = current_time - last_step_time
+                                    step_times.append(step_time)
+                                    # 只保留最近20个步骤的时间用于计算平均值
+                                    if len(step_times) > 20:
+                                        step_times.pop(0)
+                                
+                                current_step = new_step
+                                # 只在训练开始后更新时间戳
+                                if training_started:
+                                    last_step_time = current_time
+                            
+                            progress_info['step'] = current_step
+                            progress_info['total_steps'] = total_steps
+                            progress_info['step_percent'] = percent
+                            progress_info['eta'] = eta_time  # 使用日志中的预估时间
+                            
+                            # 解析步时间
+                            if 's/it' in step_rate:
+                                try:
+                                    avg_step_time = float(step_rate.replace('s/it', '').strip())
+                                    progress_info['avg_step_time'] = round(avg_step_time, 2)
+                                except:
+                                    pass
+                        
+                        # 解析进度百分比 - 匹配 "steps: 1%" 格式
+                        percent_match = re.search(r'steps?\s*:\s*(\d+)%', stripped_line, re.IGNORECASE)
+                        if percent_match:
+                            progress_info['step_percent'] = int(percent_match.group(1))
+                        
+                        # 解析loss信息 - 匹配 "avr_loss=0.107" 格式
+                        loss_match = re.search(r'avr_loss=([0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)', stripped_line, re.IGNORECASE)
+                        if loss_match:
+                            progress_info['loss'] = float(loss_match.group(1))
+                        
+                        # 合并所有进度信息
+                        if config_info:
+                            progress_info.update(config_info)
+                        
+                        # 计算训练进度
+                        if training_started and total_steps > 0 and current_step >= 0:
+                            # 训练开始后，优先使用日志中的百分比作为总体进度
+                            if 'step_percent' in progress_info:
+                                progress_info['progress_percent'] = progress_info['step_percent']
+                            else:
+                                # 如果没有解析到百分比，则使用计算值
+                                step_progress = current_step / total_steps
+                                progress_info['progress_percent'] = min(step_progress * 100, 100)
+                        elif total_epochs > 0 and current_epoch > 0:
+                            # 训练未开始时，使用epoch进度计算
+                            epoch_progress = (current_epoch - 1) / total_epochs
+                            if total_steps > 0 and current_step > 0:
+                                step_progress = current_step / total_steps / total_epochs
+                                overall_progress = epoch_progress + step_progress
+                            else:
+                                overall_progress = epoch_progress
+                            
+                            # 如果没有从日志中获取到百分比，则使用计算值
+                            if 'step_percent' not in progress_info:
+                                progress_info['progress_percent'] = min(overall_progress * 100, 100)
+                        
+                        # 如果日志中没有ETA信息，则计算剩余时间
+                        if 'eta' not in progress_info and step_times and len(step_times) >= 3:
+                            avg_step_time = sum(step_times) / len(step_times)
+                            if total_steps > 0 and current_step > 0:
+                                remaining_steps = (total_epochs - current_epoch) * total_steps + (total_steps - current_step)
+                                estimated_remaining_time = remaining_steps * avg_step_time
+                                
+                                # 格式化剩余时间
+                                hours = int(estimated_remaining_time // 3600)
+                                minutes = int((estimated_remaining_time % 3600) // 60)
+                                seconds = int(estimated_remaining_time % 60)
+                                
+                                if hours > 0:
+                                    progress_info['eta'] = f"{hours}小时{minutes}分钟"
+                                elif minutes > 0:
+                                    progress_info['eta'] = f"{minutes}分钟{seconds}秒"
+                                else:
+                                    progress_info['eta'] = f"{seconds}秒"
+                                
+                                if 'avg_step_time' not in progress_info:
+                                    progress_info['avg_step_time'] = round(avg_step_time, 2)
+                        
                         # 添加到日志列表
                         log_entry = {
                             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                             'level': 'info',
-                            'message': stripped_line
+                            'message': stripped_line,
+                            'progress': progress_info if progress_info else None
                         }
                         training_logs.append(log_entry)
                         
@@ -1302,8 +1497,12 @@ def run_training_command(config: Dict[str, Any]):
                         # 写入Python日志
                         logger.info(stripped_line)
                         
-                        # 通过WebSocket实时广播
+                        # 通过WebSocket实时广播（包含进度信息）
                         socketio.emit('log_message', log_entry)
+                        
+                        # 如果有进度信息，单独发送进度更新
+                        if progress_info:
+                            socketio.emit('training_progress', progress_info)
                         
                 training_process.stdout.close()
             except Exception as e:

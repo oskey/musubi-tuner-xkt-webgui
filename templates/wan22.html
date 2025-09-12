@@ -310,6 +310,80 @@
             transition: width 0.3s ease;
         }
         
+        .progress-card {
+            background: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
+            border: 1px solid #4a5568;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        
+        .progress-card:hover {
+            border-color: #61dafb;
+            box-shadow: 0 2px 8px rgba(97, 218, 251, 0.2);
+        }
+        
+        .progress-label {
+            color: #a0a0a0;
+            font-size: 12px;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .progress-value {
+            color: #61dafb;
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        
+        .progress-bar-small {
+            width: 100%;
+            height: 4px;
+            background: #4a5568;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        
+        .progress-fill-small {
+            height: 100%;
+            background: linear-gradient(90deg, #61dafb 0%, #21b4d3 100%);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+        
+        .config-info-card {
+            background: linear-gradient(135deg, #2d3748 0%, #4a5568 100%);
+            border: 1px solid #61dafb;
+            border-radius: 6px;
+            padding: 10px;
+            text-align: center;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .config-info-card:hover {
+            border-color: #21b4d3;
+            box-shadow: 0 4px 8px rgba(97, 218, 251, 0.3);
+            transform: translateY(-1px);
+        }
+        
+        .config-label {
+            color: #a0a0a0;
+            font-size: 11px;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        
+        .config-value {
+            color: #68d391;
+            font-size: 13px;
+            font-weight: bold;
+        }
+        
         .config-layout {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -410,6 +484,87 @@
         </div>
         
         <div class="main-content">
+            <!-- 训练进度面板 -->
+            <div class="panel" id="progress-panel" style="display: none;">
+                <h2>📊 训练进度</h2>
+                
+                <!-- 模型加载状态UI已删除 -->
+                
+                <!-- 训练配置信息 -->
+                <div id="config-info-section" style="display: none; margin-bottom: 20px;">
+                    <h3 style="color: #61dafb; margin-bottom: 15px;">⚙️ 训练配置</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+                        <div class="config-info-card" id="optimizer-info" style="display: none;">
+                            <div class="config-label">优化器</div>
+                            <div class="config-value" id="optimizer-value">--</div>
+                        </div>
+                        <div class="config-info-card" id="precision-info" style="display: none;">
+                            <div class="config-label">混合精度</div>
+                            <div class="config-value" id="precision-value">--</div>
+                        </div>
+                        <div class="config-info-card" id="gradient-checkpointing-info" style="display: none;">
+                            <div class="config-label">梯度检查点</div>
+                            <div class="config-value" id="gradient-checkpointing-value">--</div>
+                        </div>
+                        <div class="config-info-card" id="sdpa-info" style="display: none;">
+                            <div class="config-label">SDPA优化</div>
+                            <div class="config-value" id="sdpa-value">--</div>
+                        </div>
+                        <div class="config-info-card" id="fp8-info" style="display: none;">
+                            <div class="config-label">FP8优化</div>
+                            <div class="config-value" id="fp8-value">--</div>
+                        </div>
+                        <div class="config-info-card" id="dual-model-info" style="display: none;">
+                            <div class="config-label">双模型训练</div>
+                            <div class="config-value" id="dual-model-value">--</div>
+                        </div>
+                        <div class="config-info-card" id="train-data-info" style="display: none;">
+                            <div class="config-label">训练数据</div>
+                            <div class="config-value" id="train-data-value">--</div>
+                        </div>
+                        <div class="config-info-card" id="batch-size-info" style="display: none;">
+                            <div class="config-label">批次大小</div>
+                            <div class="config-value" id="batch-size-value">--</div>
+                        </div>
+                        <div class="config-info-card" id="learning-rate-info" style="display: none;">
+                            <div class="config-label">学习率</div>
+                            <div class="config-value" id="learning-rate-value">--</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 训练进度卡片 -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                    <div class="progress-card">
+                        <div class="progress-label">总体进度</div>
+                        <div class="progress-value" id="overall-progress">0%</div>
+                        <div class="progress-bar-small">
+                            <div class="progress-fill-small" id="overall-progress-bar"></div>
+                        </div>
+                    </div>
+                    <div class="progress-card">
+                        <div class="progress-label">当前轮次</div>
+                        <div class="progress-value" id="current-epoch">0/0</div>
+                    </div>
+                    <div class="progress-card">
+                        <div class="progress-label">当前步数</div>
+                        <div class="progress-value" id="current-step">0/0</div>
+                    </div>
+                    <div class="progress-card">
+                        <div class="progress-label">预计剩余</div>
+                        <div class="progress-value" id="eta-time">计算中...</div>
+                    </div>
+                    <div class="progress-card">
+                        <div class="progress-label">平均步时</div>
+                        <div class="progress-value" id="avg-step-time">--</div>
+                    </div>
+                    <div class="progress-card">
+                        <div class="progress-label">当前Loss</div>
+                        <div class="progress-value" id="current-loss">--</div>
+                    </div>
+                </div>
+            </div>
+            
             <!-- 日志面板 -->
             <div class="panel">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
@@ -1898,6 +2053,11 @@
                         message: '训练启动成功',
                         timestamp: new Date().toLocaleTimeString()
                     });
+                    // 显示进度面板
+                    const progressPanel = document.getElementById('progress-panel');
+                    if (progressPanel) {
+                        progressPanel.style.display = 'block';
+                    }
                     pollStatus();
                     startLogPolling(); // 开始轮询日志
                 } else {
@@ -1923,6 +2083,9 @@
         
         function stopTraining() {
             if (!isRunning || currentRunningTask !== 'training') return;
+            
+            // 隐藏进度面板
+            hideProgressPanel();
             
             fetch('/api/stop_training', {
                 method: 'POST',
@@ -3676,6 +3839,167 @@
         // Socket.IO客户端连接
         let socket = null;
         
+        // 更新训练进度面板
+        function updateProgressPanel(progressData) {
+            console.log('收到进度数据:', progressData);
+            
+            // 显示进度面板
+            const progressPanel = document.getElementById('progress-panel');
+            if (progressPanel) {
+                progressPanel.style.display = 'block';
+            }
+            
+            // 检测训练开始，隐藏模型加载面板 - 用户要求保持面板可见
+            // 已删除模型加载相关代码
+            
+            // 模型加载进度条相关代码已删除
+            
+            // 更新训练配置信息
+            if (progressData.config_info) {
+                const configSection = document.getElementById('config-info-section');
+                if (configSection) {
+                    configSection.style.display = 'block';
+                }
+                
+                const config = progressData.config_info;
+                
+                // 更新各个配置项
+                if (config.optimizer) {
+                    document.getElementById('optimizer-info').style.display = 'block';
+                    document.getElementById('optimizer-value').textContent = config.optimizer;
+                }
+                
+                if (config.mixed_precision) {
+                    document.getElementById('precision-info').style.display = 'block';
+                    document.getElementById('precision-value').textContent = config.mixed_precision;
+                }
+                
+                if (config.gradient_checkpointing) {
+                    document.getElementById('gradient-checkpointing-info').style.display = 'block';
+                    document.getElementById('gradient-checkpointing-value').textContent = config.gradient_checkpointing;
+                }
+                
+                if (config.sdpa) {
+                    document.getElementById('sdpa-info').style.display = 'block';
+                    document.getElementById('sdpa-value').textContent = config.sdpa;
+                }
+                
+                if (config.fp8) {
+                    document.getElementById('fp8-info').style.display = 'block';
+                    document.getElementById('fp8-value').textContent = config.fp8;
+                }
+                
+                if (config.dual_model) {
+                    document.getElementById('dual-model-info').style.display = 'block';
+                    document.getElementById('dual-model-value').textContent = config.dual_model;
+                }
+                
+                if (config.train_data) {
+                    document.getElementById('train-data-info').style.display = 'block';
+                    document.getElementById('train-data-value').textContent = config.train_data;
+                }
+                
+                if (config.batch_size) {
+                    document.getElementById('batch-size-info').style.display = 'block';
+                    document.getElementById('batch-size-value').textContent = config.batch_size;
+                }
+                
+                if (config.learning_rate) {
+                    document.getElementById('learning-rate-info').style.display = 'block';
+                    document.getElementById('learning-rate-value').textContent = config.learning_rate;
+                }
+            }
+            
+            // 更新总体进度
+            if (progressData.progress_percent !== undefined) {
+                const progressPercent = Math.round(progressData.progress_percent * 100) / 100;
+                document.getElementById('overall-progress').textContent = progressPercent.toFixed(1) + '%';
+                document.getElementById('overall-progress-bar').style.width = progressPercent + '%';
+            }
+            
+            // 更新当前轮次
+            if (progressData.epoch !== undefined && progressData.total_epochs !== undefined) {
+                document.getElementById('current-epoch').textContent = 
+                    progressData.epoch + '/' + progressData.total_epochs;
+            }
+            
+            // 更新当前步数
+            if (progressData.step !== undefined) {
+                const stepText = progressData.total_steps ? 
+                    progressData.step + '/' + progressData.total_steps :
+                    progressData.step.toString();
+                document.getElementById('current-step').textContent = stepText;
+            }
+            
+            // 更新预计剩余时间
+            if (progressData.eta) {
+                document.getElementById('eta-time').textContent = progressData.eta;
+            }
+            
+            // 更新平均步时
+            if (progressData.avg_step_time !== undefined) {
+                document.getElementById('avg-step-time').textContent = 
+                    progressData.avg_step_time + '秒/步';
+            }
+            
+            // 更新当前Loss
+            if (progressData.loss !== undefined) {
+                const lossValue = progressData.loss;
+                if (lossValue < 0.01) {
+                    document.getElementById('current-loss').textContent = lossValue.toExponential(3);
+                } else {
+                    document.getElementById('current-loss').textContent = lossValue.toFixed(4);
+                }
+            }
+        }
+        
+        // 隐藏进度面板
+        function hideProgressPanel() {
+            const progressPanel = document.getElementById('progress-panel');
+            if (progressPanel) {
+                progressPanel.style.display = 'none';
+            }
+            
+            // 隐藏配置信息面板
+            const configSection = document.getElementById('config-info-section');
+            if (configSection) {
+                configSection.style.display = 'none';
+                // 隐藏所有配置信息卡片
+                const configCards = ['optimizer-info', 'precision-info', 'gradient-checkpointing-info', 
+                                   'sdpa-info', 'fp8-info', 'dual-model-info', 'train-data-info', 
+                                   'batch-size-info', 'learning-rate-info'];
+                configCards.forEach(cardId => {
+                    const card = document.getElementById(cardId);
+                    if (card) {
+                        card.style.display = 'none';
+                    }
+                });
+            }
+            
+            // 重置所有进度显示
+            const overallProgress = document.getElementById('overall-progress');
+            const overallProgressBar = document.getElementById('overall-progress-bar');
+            const currentEpoch = document.getElementById('current-epoch');
+            const currentStep = document.getElementById('current-step');
+            const etaTime = document.getElementById('eta-time');
+            const avgStepTime = document.getElementById('avg-step-time');
+            const currentLoss = document.getElementById('current-loss');
+            
+            if (overallProgress) overallProgress.textContent = '0%';
+            if (overallProgressBar) overallProgressBar.style.width = '0%';
+            if (currentEpoch) currentEpoch.textContent = '0/0';
+            if (currentStep) currentStep.textContent = '0/0';
+            if (etaTime) etaTime.textContent = '计算中...';
+            if (avgStepTime) avgStepTime.textContent = '--';
+            if (currentLoss) currentLoss.textContent = '--';
+            
+            // 重置模型加载状态
+            const modelLoadingStatus = document.getElementById('model-loading-status');
+            const modelLoadingBar = document.getElementById('model-loading-bar');
+            if (modelLoadingStatus) modelLoadingStatus.textContent = '准备中...';
+            if (modelLoadingBar) modelLoadingBar.style.width = '0%';
+        }
+        
         function initializeSocket() {
             socket = io();
             
@@ -3699,6 +4023,11 @@
             
             socket.on('log_message', function(logEntry) {
                 addLogEntry(logEntry);
+            });
+            
+            // 监听训练进度更新
+            socket.on('training_progress', function(progressData) {
+                updateProgressPanel(progressData);
             });
             
             socket.on('connect_error', function(error) {
@@ -3849,6 +4178,70 @@
             });
         }
         
+        // 初始状态检查函数 - 页面加载时恢复训练状态
+        function checkInitialStatus() {
+            fetch('/api/status')
+            .then(response => response.json())
+            .then(data => {
+                console.log('初始状态检查:', data);
+                
+                // 检查是否有训练正在运行
+                if (data.training_running) {
+                    // 恢复训练状态
+                    isRunning = true;
+                    currentRunningTask = 'training';
+                    setTrainingButtonsEnabled(false);
+                    updateStatus('running', data.status || '训练进行中...');
+                    
+                    // 显示进度面板
+                    const progressPanel = document.getElementById('progress-panel');
+                    if (progressPanel) {
+                        progressPanel.style.display = 'block';
+                    }
+                    
+                    // 开始轮询状态和日志
+                    pollStatus();
+                    startLogPolling();
+                    
+                    addLogEntry({
+                        level: 'info',
+                        message: '检测到训练正在进行中，已恢复训练状态',
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                } else if (data.cache_running) {
+                    // 恢复缓存状态
+                    isRunning = true;
+                    currentRunningTask = 'caching';
+                    setCacheButtonsEnabled(false);
+                    updateStatus('running', `${data.cache_type}缓存进行中...`);
+                    
+                    // 开始轮询状态
+                    pollStatus();
+                    
+                    addLogEntry({
+                        level: 'info',
+                        message: `检测到${data.cache_type}缓存正在进行中，已恢复缓存状态`,
+                        timestamp: new Date().toLocaleTimeString()
+                    });
+                } else {
+                    // 没有任务运行，确保按钮状态正确
+                    isRunning = false;
+                    currentRunningTask = null;
+                    setTrainingButtonsEnabled(true);
+                    setCacheButtonsEnabled(true);
+                    updateStatus('ready', '就绪');
+                }
+            })
+            .catch(error => {
+                console.error('初始状态检查失败:', error);
+                addLogEntry({
+                    level: 'warning',
+                    message: '初始状态检查失败，请手动检查训练状态',
+                    timestamp: new Date().toLocaleTimeString()
+                });
+            });
+        }
+        
         // 页面加载完成后的初始化
         document.addEventListener('DOMContentLoaded', function() {
             // 设置默认任务类型为T2V
@@ -3865,6 +4258,9 @@
             
             // 初始化WebSocket连接
             initializeSocket();
+            
+            // 检查初始状态 - 恢复训练状态
+            setTimeout(checkInitialStatus, 1000); // 延迟1秒确保页面完全加载
             
             addLogEntry({
                 level: 'info',
