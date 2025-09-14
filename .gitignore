@@ -19,7 +19,6 @@
 !wan22_webui.py
 !README.md
 !readme.md
-!triton-3.0.0-cp310-cp310-win_amd64.whl
 
 # 确保.git目录不被忽略
 !.git/

@@ -189,7 +189,7 @@ cache_directory = "./ai_data/a_huangxu_cache"            # 缓存路径（脚本
 
 ### 基础环境
 - **操作系统**: Windows 10/11 (推荐)
-- **Python版本**: 3.8+ (推荐3.10)
+- **Python版本**: 3.10 (必须)
 - **CUDA环境**: 11.8+ (GPU加速必需)
 - **基础仓库**: 官方musubi-tuner仓库
 
