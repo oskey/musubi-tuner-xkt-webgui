@@ -135,6 +135,8 @@ echo.
 echo =================================================
 echo 是否安装 SageAttention？(Y/N，默认Y)
 echo SageAttention 可以显著提升注意力机制的性能
+echo 如果一直安装失败，通常为python版本不正确，我这里是3.10
+echo 即使不安装，依然可以使用本工具，只是性能会下降
 echo =================================================
 set /p install_sage="请选择 (Y/N): "
 if "%install_sage%"=="" set install_sage=Y
